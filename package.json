@@ -2,6 +2,7 @@
   "name": "clankerproxy",
   "version": "1.0.0",
   "description": "LLM gateway tray app wrapping CLIProxyAPIPlus",
+  "author": "esson",
   "main": ".vite/build/index.js",
   "scripts": {
     "start": "electron-forge start",

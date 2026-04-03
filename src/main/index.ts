@@ -17,11 +17,14 @@ function log(msg: string) {
 process.on('uncaughtException', (err) => { log(`UNCAUGHT: ${err.stack ?? err}`); });
 process.on('unhandledRejection', (err) => { log(`UNHANDLED: ${err}`); });
 
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
-if (require('electron-squirrel-startup')) app.quit();
+// Handle Squirrel install/update/uninstall events on Windows.
+if (process.platform === 'win32' && process.argv[1]?.startsWith('--squirrel-')) {
+  app.quit();
+}
 
 const proxyManager = new ProxyManager();
 let settingsWindow: BrowserWindow | null = null;
+let isQuitting = false;
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -79,14 +82,14 @@ function createSettingsWindow() {
   });
 
   settingsWindow.on('close', (e) => {
-    // Save window bounds
     if (settingsWindow) {
       const b = settingsWindow.getBounds();
       store.set('windowBounds', { x: b.x, y: b.y, width: b.width, height: b.height });
     }
-    // Hide instead of close so the tray app keeps running
-    e.preventDefault();
-    settingsWindow?.hide();
+    if (!isQuitting) {
+      e.preventDefault();
+      settingsWindow?.hide();
+    }
   });
 
   settingsWindow.on('closed', () => {
@@ -135,5 +138,6 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', async () => {
+  isQuitting = true;
   await proxyManager.stop();
 });
