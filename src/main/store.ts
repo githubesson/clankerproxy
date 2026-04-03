@@ -6,7 +6,6 @@ interface StoreSchema {
   autoStartProxy: boolean;
   autoStartApp: boolean;
   windowBounds: { x: number; y: number; width: number; height: number } | null;
-  managementSecret: string;
   zoom: number;
 }
 
@@ -17,7 +16,6 @@ export const store = new Store<StoreSchema>({
     autoStartProxy: true,
     autoStartApp: false,
     windowBounds: null,
-    managementSecret: '',
     zoom: 1.0,
   },
 });

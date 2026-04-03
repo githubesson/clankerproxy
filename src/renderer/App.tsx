@@ -51,7 +51,7 @@ export function App() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  });
+  }, [zoom]);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden text-[12px]">

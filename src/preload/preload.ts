@@ -39,6 +39,7 @@ const api = {
   providerKeys: {
     list: (provider: string) => ipcRenderer.invoke('providerKeys:list', provider),
     patch: (provider: string, body: any) => ipcRenderer.invoke('providerKeys:patch', provider, body),
+    put: (provider: string, entries: any[]) => ipcRenderer.invoke('providerKeys:put', provider, entries),
     delete: (provider: string, index: number) => ipcRenderer.invoke('providerKeys:delete', provider, index),
   },
   authFiles: {
@@ -60,6 +61,9 @@ const api = {
   },
   models: {
     get: (channel: string) => ipcRenderer.invoke('models:get', channel) as Promise<{ channel: string; models: any[] }>,
+  },
+  modelsDev: {
+    get: () => ipcRenderer.invoke('modelsDev:get') as Promise<Record<string, any>>,
   },
   prefs: {
     get: (key: string) => ipcRenderer.invoke('prefs:get', key),

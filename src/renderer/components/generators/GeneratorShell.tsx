@@ -42,24 +42,144 @@ interface Props {
 /* ── Component ── */
 
 export function GeneratorShell({ def, availableChannels }: Props) {
+  // Infer API format from channel type
+  function inferFormat(ch: string): string {
+    if (ch.startsWith('custom-claude:')) return 'anthropic';
+    // custom: entries are openai-compatibility (chat completions), not openai (responses)
+    if (ch.startsWith('custom:')) {
+      return def.formats.find((f) => f.value === 'openai-compatible' || f.value === 'openai-compat' || f.value === 'generic-chat-completion-api')?.value
+        ?? def.formats.find((f) => f.value.includes('compat'))?.value
+        ?? def.formats[0].value;
+    }
+    return def.channelFormatMap[ch] ?? def.formats[0].value;
+  }
+
   const { data: status } = useProxyStatus();
   const { data: apiKeys } = useAPIKeys();
   const port = status?.port ?? 8317;
 
   const [channel, setChannel] = useState(availableChannels[0]?.channel ?? 'claude');
-  const [format, setFormat] = useState(def.channelFormatMap[channel] ?? def.formats[0].value);
+  const [format, setFormat] = useState(() => inferFormat(availableChannels[0]?.channel ?? 'claude'));
   const [selected, setSelected] = useState<SelectedModel[]>([]);
   const [apiKeyRef, setApiKeyRef] = useState(def.apiKeyPlaceholder);
   const [copied, setCopied] = useState(false);
 
+  const isCustomChannel = channel.startsWith('custom:') || channel.startsWith('custom-claude:');
+
+  // Fetch models from proxy registry for built-in channels
   const { data: modelData } = useQuery({
     queryKey: ['models', channel],
     queryFn: () => window.clankerProxy.models.get(channel),
-    enabled: true,
+    enabled: !isCustomChannel,
     staleTime: 60000,
   });
 
-  const models = modelData?.models ?? [];
+  // Fetch models.dev catalog for enriching custom channel models
+  const { data: modelsCatalog } = useQuery({
+    queryKey: ['modelsDev'],
+    queryFn: () => window.clankerProxy.modelsDev.get(),
+    enabled: isCustomChannel,
+    staleTime: 600000,
+  });
+
+  // Fetch models from configured provider entries for custom channels, enriched with models.dev data
+  const { data: customModels } = useQuery({
+    queryKey: ['customModels', channel, !!modelsCatalog],
+    queryFn: async () => {
+      const api = window.clankerProxy;
+
+      // Find the provider entry and its models
+      let providerModels: any[] = [];
+      let providerName = '';
+      if (channel.startsWith('custom:')) {
+        providerName = channel.slice('custom:'.length);
+        const entries = await api.providerKeys.list('openai-compatibility');
+        const entry = entries?.find((e: any) => e.name === providerName);
+        providerModels = entry?.models ?? [];
+      } else if (channel.startsWith('custom-claude:')) {
+        const label = channel.slice('custom-claude:'.length);
+        const entries = await api.providerKeys.list('claude-api-key');
+        const entry = entries?.find((e: any) => (e.prefix || new URL(e['base-url']).hostname) === label);
+        providerModels = entry?.models ?? [];
+        providerName = label;
+      }
+
+      // Look up models.dev metadata for this provider
+      const catalogProvider = modelsCatalog?.[providerName];
+      const catalogModels = catalogProvider?.models ?? {};
+
+      return providerModels.map((m: any) => {
+        const modelId = m.name || m.alias || m.id;
+        const devData = catalogModels[modelId] ?? {};
+        return {
+          id: modelId,
+          display_name: devData.name || m.alias || m.name,
+          max_completion_tokens: devData.limit?.output ?? 0,
+          context_length: devData.limit?.context ?? 0,
+          reasoning: devData.reasoning ?? false,
+          tool_call: devData.tool_call ?? false,
+        };
+      });
+    },
+    enabled: isCustomChannel,
+    staleTime: 10000,
+  });
+
+  // Also try to match by scanning all catalog providers for models (fuzzy match for renamed providers)
+  const { data: customModelsFallback } = useQuery({
+    queryKey: ['customModelsFallback', channel, !!modelsCatalog],
+    queryFn: async () => {
+      if (!modelsCatalog) return null;
+      const api = window.clankerProxy;
+
+      let providerModels: any[] = [];
+      if (channel.startsWith('custom:')) {
+        const name = channel.slice('custom:'.length);
+        const entries = await api.providerKeys.list('openai-compatibility');
+        providerModels = entries?.find((e: any) => e.name === name)?.models ?? [];
+      } else if (channel.startsWith('custom-claude:')) {
+        const label = channel.slice('custom-claude:'.length);
+        const entries = await api.providerKeys.list('claude-api-key');
+        const entry = entries?.find((e: any) => (e.prefix || new URL(e['base-url']).hostname) === label);
+        providerModels = entry?.models ?? [];
+      }
+
+      // Build a flat lookup of all models across all catalog providers
+      const allModels: Record<string, any> = {};
+      for (const prov of Object.values(modelsCatalog) as any[]) {
+        for (const [id, model] of Object.entries(prov.models ?? {}) as any[]) {
+          allModels[id] = model;
+        }
+      }
+
+      return providerModels.map((m: any) => {
+        const modelId = m.name || m.alias || m.id;
+        const devData = allModels[modelId] ?? {};
+        return {
+          id: modelId,
+          display_name: devData.name || m.alias || m.name,
+          max_completion_tokens: devData.limit?.output ?? 0,
+          context_length: devData.limit?.context ?? 0,
+          reasoning: devData.reasoning ?? false,
+          tool_call: devData.tool_call ?? false,
+        };
+      });
+    },
+    enabled: isCustomChannel && !!modelsCatalog,
+    staleTime: 10000,
+  });
+
+  // Use enriched custom models, falling back to the basic ones, then fallback scan
+  const resolvedCustomModels = (() => {
+    const primary = customModels ?? [];
+    // If primary has no token data, try fallback
+    if (primary.length > 0 && primary.every((m: any) => !m.context_length)) {
+      return customModelsFallback ?? primary;
+    }
+    return primary;
+  })();
+
+  const models = isCustomChannel ? resolvedCustomModels : (modelData?.models ?? []);
 
   const addModel = (m: any) => {
     if (selected.find((s) => s.id === m.id)) return;
@@ -152,7 +272,7 @@ export function GeneratorShell({ def, availableChannels }: Props) {
           <div className="flex items-center gap-2">
             <Select
               value={channel}
-              onChange={(v) => { setChannel(v); setFormat(def.channelFormatMap[v] ?? def.formats[0].value); }}
+              onChange={(v) => { setChannel(v); setFormat(inferFormat(v)); }}
               options={availableChannels.map((c) => ({ value: c.channel, label: c.label }))}
             />
             <Select value={format} onChange={setFormat} options={def.formats} />

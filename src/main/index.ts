@@ -1,6 +1,6 @@
 import { app, BrowserWindow } from 'electron';
 import { join } from 'path';
-import { writeFileSync, appendFileSync } from 'fs';
+import { appendFileSync } from 'fs';
 import { ProxyManager } from './proxy-manager';
 import { createTray } from './tray';
 import { registerIPCHandlers } from './ipc-handlers';

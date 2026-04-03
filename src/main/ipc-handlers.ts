@@ -1,3 +1,5 @@
+import https from 'https';
+import os from 'os';
 import { ipcMain, shell, BrowserWindow } from 'electron';
 import { ProxyManager } from './proxy-manager';
 import { downloadBinary, getLatestRelease, checkForUpdate, isBinaryInstalled, type ReleaseInfo } from './binary-manager';
@@ -63,6 +65,7 @@ export function registerIPCHandlers(proxyManager: ProxyManager) {
   // Provider Keys
   ipcMain.handle('providerKeys:list', (_, provider: string) => requireClient().getProviderKeys(provider));
   ipcMain.handle('providerKeys:patch', (_, provider: string, body: any) => requireClient().patchProviderKeys(provider, body));
+  ipcMain.handle('providerKeys:put', (_, provider: string, entries: any[]) => requireClient().putProviderKeys(provider, entries));
   ipcMain.handle('providerKeys:delete', (_, provider: string, index: number) => requireClient().deleteProviderKey(provider, index));
 
   // Auth Files
@@ -86,11 +89,29 @@ export function registerIPCHandlers(proxyManager: ProxyManager) {
   // Usage
   ipcMain.handle('usage:get', () => requireClient().getUsage());
 
+  // Models.dev provider catalog
+  let modelsDevCache: { data: any; ts: number } | null = null;
+  ipcMain.handle('modelsDev:get', async () => {
+    // Cache for 10 minutes
+    if (modelsDevCache && Date.now() - modelsDevCache.ts < 600000) return modelsDevCache.data;
+    const data: Buffer[] = [];
+    const json = await new Promise<string>((resolve, reject) => {
+      https.get('https://models.dev/api.json', { headers: { 'User-Agent': 'ClankerProxy/1.0' } }, (res: any) => {
+        res.on('data', (chunk: Buffer) => data.push(chunk));
+        res.on('end', () => resolve(Buffer.concat(data).toString()));
+        res.on('error', reject);
+      }).on('error', reject);
+    });
+    const parsed = JSON.parse(json);
+    modelsDevCache = { data: parsed, ts: Date.now() };
+    return parsed;
+  });
+
   // Open auth directory in file explorer
   ipcMain.handle('authFiles:openFolder', async () => {
     const config = await requireClient().getConfig();
     const authDir = config['auth-dir'] || '~/.cli-proxy-api';
-    const resolved = authDir.replace(/^~/, require('os').homedir());
+    const resolved = authDir.replace(/^~/, os.homedir());
     shell.openPath(resolved);
   });
 

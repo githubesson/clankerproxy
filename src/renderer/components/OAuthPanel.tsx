@@ -82,7 +82,11 @@ function Trigger({ provider, onResult }: { provider: { id: string; label: string
       const r = await window.clankerProxy.oauth.getStatus(s);
       if (r.status === 'ok' || r.status === 'success') { setPolling(false); onResult('success'); }
       else if (r.status === 'error' || r.error) { setPolling(false); onResult('error'); }
-    } catch {}
+    } catch (err) {
+      console.error('OAuth poll failed:', err);
+      setPolling(false);
+      onResult('error');
+    }
   }, [onResult]);
 
   useEffect(() => {

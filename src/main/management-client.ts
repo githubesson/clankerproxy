@@ -113,6 +113,10 @@ export class ManagementClient {
     await this.patch(`/v0/management/${provider}`, JSON.stringify(body));
   }
 
+  async putProviderKeys(provider: string, entries: any[]): Promise<void> {
+    await this.putText(`/v0/management/${provider}`, JSON.stringify(entries));
+  }
+
   async deleteProviderKey(provider: string, index: number): Promise<void> {
     await this.delete(`/v0/management/${provider}?index=${index}`);
   }

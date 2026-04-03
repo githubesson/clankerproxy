@@ -190,7 +190,7 @@ export class ProxyManager extends EventEmitter {
         this.process?.kill('SIGKILL');
       }, 5000);
 
-      this.process!.on('exit', () => {
+      this.process!.once('exit', () => {
         clearTimeout(timeout);
         this.process = null;
         this._client = null;

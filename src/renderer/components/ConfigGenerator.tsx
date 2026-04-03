@@ -41,25 +41,46 @@ export function ConfigGenerator() {
     queryKey: ['configuredProviders'],
     queryFn: async () => {
       const api = window.clankerProxy;
-      const results: string[] = [];
+      const channels: string[] = [];
+      const customChannels: { channel: string; label: string }[] = [];
 
-      // Check API key providers
-      const providerChecks = [
+      // Check native providers
+      const checks = [
         { id: 'claude-api-key', channel: 'claude' },
         { id: 'gemini-api-key', channel: 'gemini' },
         { id: 'codex-api-key', channel: 'codex' },
         { id: 'vertex-api-key', channel: 'vertex' },
-        { id: 'openai-compatibility', channel: 'openai-compat' },
       ];
 
-      for (const p of providerChecks) {
+      for (const p of checks) {
         try {
           const keys = await api.providerKeys.list(p.id);
-          if (keys && keys.length > 0) results.push(p.channel);
+          if (keys && keys.length > 0) channels.push(p.channel);
         } catch {}
       }
 
-      return results;
+      // Check openai-compatibility entries -- each is a custom provider with its own models
+      try {
+        const oaiEntries = await api.providerKeys.list('openai-compatibility');
+        for (const entry of oaiEntries ?? []) {
+          if (entry.name && entry.models?.length > 0) {
+            customChannels.push({ channel: `custom:${entry.name}`, label: `${entry.name} (openai-compat)` });
+          }
+        }
+      } catch {}
+
+      // Check claude-api-key entries with custom base URLs
+      try {
+        const claudeEntries = await api.providerKeys.list('claude-api-key');
+        for (const entry of claudeEntries ?? []) {
+          if (entry['base-url'] && entry.models?.length > 0) {
+            const label = entry.prefix || new URL(entry['base-url']).hostname;
+            customChannels.push({ channel: `custom-claude:${label}`, label: `${label} (anthropic)` });
+          }
+        }
+      } catch {}
+
+      return { channels, customChannels };
     },
     enabled: isRunning,
     staleTime: 10000,
@@ -80,9 +101,9 @@ export function ConfigGenerator() {
     }
   });
 
-  // From provider keys
+  // From native provider keys
   if (configuredProviders) {
-    for (const p of configuredProviders) {
+    for (const p of configuredProviders.channels) {
       if (p === 'claude') activeChannels.add('claude');
       if (p === 'gemini') { activeChannels.add('gemini'); activeChannels.add('gemini-cli'); }
       if (p === 'codex') activeChannels.add('codex');
@@ -90,7 +111,10 @@ export function ConfigGenerator() {
     }
   }
 
-  const availableChannels = CHANNEL_DETECTION.filter((c) => activeChannels.has(c.channel));
+  const availableChannels = [
+    ...CHANNEL_DETECTION.filter((c) => activeChannels.has(c.channel)),
+    ...(configuredProviders?.customChannels ?? []),
+  ];
 
   return (
     <div className="max-w-xl space-y-3">
