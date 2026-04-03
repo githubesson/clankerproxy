@@ -1,5 +1,7 @@
 # ClankerProxy
 
+![screenshot](assets/screenshot.png)
+
 A system tray app that wraps [CLIProxyAPIPlus](https://github.com/router-for-me/CLIProxyAPIPlus) in a simple GUI. It manages the proxy binary, API keys, OAuth logins, and config without touching the command line.
 
 ## What it does
