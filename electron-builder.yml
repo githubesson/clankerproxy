@@ -1,0 +1,36 @@
+appId: com.esson.clankerproxy
+productName: ClankerProxy
+copyright: Copyright (c) esson
+
+directories:
+  output: release
+
+files:
+  - .vite/**/*
+  - package.json
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  category: public.app-category.developer-tools
+
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
