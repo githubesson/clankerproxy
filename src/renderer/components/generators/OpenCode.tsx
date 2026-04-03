@@ -4,12 +4,12 @@ import { GeneratorShell, type GeneratorDef, type SelectedModel } from './Generat
 const ANTHROPIC_CHIPS = [
   { value: 'disabled', label: 'Off' },
   { value: 'adaptive', label: 'Adaptive' },
-  { value: '1024', label: '1K' },
-  { value: '8192', label: '8K' },
-  { value: '16000', label: '16K' },
-  { value: '24576', label: '24K' },
-  { value: '32768', label: '32K' },
-  { value: '128000', label: '128K' },
+  { value: '1024', label: 'Low' },
+  { value: '8192', label: 'Medium' },
+  { value: '16000', label: 'Med-High' },
+  { value: '24576', label: 'High' },
+  { value: '32768', label: 'XHigh' },
+  { value: '128000', label: 'Max' },
 ];
 
 const OPENAI_CHIPS = [
@@ -41,13 +41,22 @@ function buildThinkingOptions(fmt: string, v: string): Record<string, any> {
   return { reasoningEffort: v };
 }
 
+const BUDGET_LEVEL_NAME: Record<string, string> = {
+  '1024': 'low',
+  '8192': 'medium',
+  '16000': 'medium-high',
+  '24576': 'high',
+  '32768': 'xhigh',
+  '128000': 'max',
+};
+
 function variantName(fmt: string, v: string): string {
   if (fmt === 'anthropic') {
     if (v === 'disabled') return 'no-thinking';
     if (v === 'adaptive') return 'adaptive';
-    return `thinking-${v}`;
+    return BUDGET_LEVEL_NAME[v] ?? `thinking-${v}`;
   }
-  return `reasoning-${v}`;
+  return v; // openai: just "low", "medium", "high", "xhigh"
 }
 
 const def: GeneratorDef = {
@@ -63,6 +72,10 @@ const def: GeneratorDef = {
 
   getThinkingOptions(format) {
     return format === 'anthropic' ? ANTHROPIC_CHIPS : OPENAI_CHIPS;
+  },
+
+  getVariantName(format, value) {
+    return variantName(format, value);
   },
 
   buildOutput({ selected, port, apiKey }) {

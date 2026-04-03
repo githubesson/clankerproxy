@@ -86,6 +86,14 @@ export function registerIPCHandlers(proxyManager: ProxyManager) {
   // Usage
   ipcMain.handle('usage:get', () => requireClient().getUsage());
 
+  // Open auth directory in file explorer
+  ipcMain.handle('authFiles:openFolder', async () => {
+    const config = await requireClient().getConfig();
+    const authDir = config['auth-dir'] || '~/.cli-proxy-api';
+    const resolved = authDir.replace(/^~/, require('os').homedir());
+    shell.openPath(resolved);
+  });
+
   // Models
   ipcMain.handle('models:get', (_, channel: string) => requireClient().getModelDefinitions(channel));
 

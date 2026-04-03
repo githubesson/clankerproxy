@@ -12,7 +12,12 @@ export function AuthFiles() {
 
   return (
     <div className="max-w-lg space-y-2">
-      <p className="text-[10px] text-muted-foreground">Credential files. Toggle to enable/disable.</p>
+      <div className="flex items-center gap-2">
+        <p className="text-[10px] text-muted-foreground flex-1">Credential files. Toggle to enable/disable.</p>
+        <Button variant="outline" size="sm" onClick={() => window.clankerProxy.authFiles.openFolder()}>
+          Open Folder
+        </Button>
+      </div>
 
       <Card>
         <CardContent className="p-0">

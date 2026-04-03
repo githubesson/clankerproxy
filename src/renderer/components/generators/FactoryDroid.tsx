@@ -53,6 +53,11 @@ const def: GeneratorDef = {
     return SUFFIX_CHIPS[family] ?? SUFFIX_CHIPS.openai;
   },
 
+  getVariantName(_format, value) {
+    // "(high)" -> "high", "(max)" -> "max"
+    return value.replace(/[()]/g, '');
+  },
+
   buildOutput({ selected, port, apiKey }) {
     const entries: any[] = [];
 

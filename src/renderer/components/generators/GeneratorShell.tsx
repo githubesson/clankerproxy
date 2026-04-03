@@ -22,6 +22,8 @@ export interface GeneratorDef {
   channelFormatMap: Record<string, string>;
   /** Return available thinking chips for a given format */
   getThinkingOptions: (format: string) => { value: string; label: string }[];
+  /** Human-readable name for a variant value (e.g. "128000" -> "max") */
+  getVariantName?: (format: string, value: string) => string;
   /** Build the final JSON output */
   buildOutput: (ctx: {
     selected: SelectedModel[];
@@ -212,9 +214,9 @@ export function GeneratorShell({ def, availableChannels }: Props) {
                       })}
                     </div>
                   )}
-                  {s.variants.length > 1 && (
+                  {s.variants.length > 0 && (
                     <p className="text-[9px] text-muted-foreground/40 mt-1">
-                      {s.variants.length} variants
+                      {s.variants.length} variant{s.variants.length !== 1 ? 's' : ''}: {s.variants.map((v) => def.getVariantName?.(s.format, v) ?? v).join(', ')}
                     </p>
                   )}
                 </div>

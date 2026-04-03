@@ -46,6 +46,7 @@ const api = {
     delete: (name: string) => ipcRenderer.invoke('authFiles:delete', name),
     toggle: (name: string, disabled: boolean) => ipcRenderer.invoke('authFiles:toggle', name, disabled),
     patchFields: (name: string, fields: Record<string, any>) => ipcRenderer.invoke('authFiles:patchFields', name, fields),
+    openFolder: () => ipcRenderer.invoke('authFiles:openFolder'),
   },
   oauth: {
     startLogin: (provider: string) => ipcRenderer.invoke('oauth:startLogin', provider),
