@@ -31,6 +31,7 @@ declare const MAIN_WINDOW_VITE_NAME: string;
 
 function createSettingsWindow() {
   if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.show();
     settingsWindow.focus();
     return;
   }
