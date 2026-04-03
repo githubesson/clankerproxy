@@ -3,6 +3,7 @@ import { useIsProxyRunning, useAuthFiles } from '../hooks/useIPC';
 import { useQuery } from '@tanstack/react-query';
 import { ProxyRequired, Select } from './ui';
 import { FactoryDroidGenerator } from './generators/FactoryDroid';
+import { OpenCodeGenerator } from './generators/OpenCode';
 
 // All known channels and which auth file provider strings map to them
 const CHANNEL_DETECTION: { channel: string; label: string; authPatterns: string[] }[] = [
@@ -22,9 +23,8 @@ const CHANNEL_DETECTION: { channel: string; label: string; authPatterns: string[
 
 // Registered generators — add new ones here
 const GENERATORS = [
-  { id: 'factory-droid', label: 'Factory Droid', desc: '~/.factory/settings.json' },
-  // future: { id: 'claude-code', label: 'Claude Code', desc: '~/.claude/settings.json' },
-  // future: { id: 'continue', label: 'Continue', desc: '~/.continue/config.json' },
+  { id: 'factory-droid', label: 'Factory Droid' },
+  { id: 'opencode', label: 'OpenCode' },
 ] as const;
 
 type GeneratorId = (typeof GENERATORS)[number]['id'];
@@ -112,6 +112,10 @@ export function ConfigGenerator() {
 
       {availableChannels.length > 0 && generator === 'factory-droid' && (
         <FactoryDroidGenerator availableChannels={availableChannels} />
+      )}
+
+      {availableChannels.length > 0 && generator === 'opencode' && (
+        <OpenCodeGenerator availableChannels={availableChannels} />
       )}
     </div>
   );
