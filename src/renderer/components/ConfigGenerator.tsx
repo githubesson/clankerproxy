@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ProxyRequired, Select } from './ui';
 import { FactoryDroidGenerator } from './generators/FactoryDroid';
 import { OpenCodeGenerator } from './generators/OpenCode';
+import { CrushGenerator } from './generators/Crush';
 
 // All known channels and which auth file provider strings map to them
 const CHANNEL_DETECTION: { channel: string; label: string; authPatterns: string[] }[] = [
@@ -25,6 +26,7 @@ const CHANNEL_DETECTION: { channel: string; label: string; authPatterns: string[
 const GENERATORS = [
   { id: 'factory-droid', label: 'Factory Droid' },
   { id: 'opencode', label: 'OpenCode' },
+  { id: 'crush', label: 'Crush' },
 ] as const;
 
 type GeneratorId = (typeof GENERATORS)[number]['id'];
@@ -116,6 +118,10 @@ export function ConfigGenerator() {
 
       {availableChannels.length > 0 && generator === 'opencode' && (
         <OpenCodeGenerator availableChannels={availableChannels} />
+      )}
+
+      {availableChannels.length > 0 && generator === 'crush' && (
+        <CrushGenerator availableChannels={availableChannels} />
       )}
     </div>
   );

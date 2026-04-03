@@ -63,7 +63,10 @@ const def: GeneratorDef = {
 
     for (const s of selected) {
       const baseUrl = s.format === 'openai' ? `http://127.0.0.1:${port}/v1` : `http://127.0.0.1:${port}`;
-      const base = { baseUrl, apiKey, provider: s.format };
+      const base = {
+        baseUrl, apiKey, provider: s.format,
+        ...(s.maxOutputTokens ? { maxOutputTokens: s.maxOutputTokens } : {}),
+      };
 
       if (s.variants.length === 0) {
         entries.push({ model: s.id, displayName: `[clanker] ${s.displayName}`, ...base });

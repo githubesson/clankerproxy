@@ -11,6 +11,8 @@ export interface SelectedModel {
   format: string;
   variants: string[]; // selected thinking levels/suffixes
   channel: string;
+  maxOutputTokens: number;
+  contextLength: number;
 }
 
 export interface GeneratorDef {
@@ -64,6 +66,8 @@ export function GeneratorShell({ def, availableChannels }: Props) {
     setSelected((prev) => [...prev, {
       id: m.id, displayName: m.display_name || m.id, format,
       variants: [], channel,
+      maxOutputTokens: m.max_completion_tokens || m.outputTokenLimit || 16384,
+      contextLength: m.context_length || m.inputTokenLimit || 0,
     }]);
   };
 
@@ -87,6 +91,8 @@ export function GeneratorShell({ def, availableChannels }: Props) {
       .map((m: any) => ({
         id: m.id, displayName: m.display_name || m.id, format,
         variants: [], channel,
+        maxOutputTokens: m.max_completion_tokens || m.outputTokenLimit || 16384,
+        contextLength: m.context_length || m.inputTokenLimit || 0,
       }));
     setSelected((prev) => [...prev, ...newModels]);
   };

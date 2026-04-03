@@ -91,7 +91,14 @@ const def: GeneratorDef = {
 
       const modelsObj: Record<string, any> = {};
       for (const m of fmtModels) {
-        const entry: Record<string, any> = { name: `[clanker] ${m.displayName}` };
+        const entry: Record<string, any> = {
+          name: `[clanker] ${m.displayName}`,
+          limit: {
+            ...(m.contextLength ? { context: m.contextLength } : {}),
+            ...(m.maxOutputTokens ? { output: m.maxOutputTokens } : {}),
+          },
+        };
+        if (Object.keys(entry.limit).length === 0) delete entry.limit;
 
         if (m.variants.length === 1) {
           entry.options = buildThinkingOptions(fmt, m.variants[0]);
