@@ -24,6 +24,8 @@ const NAV = [
 
 type NavId = (typeof NAV)[number]['id'];
 
+const isMac = navigator.platform.startsWith('Mac');
+
 export function App() {
   const [active, setActive] = useState<NavId>('dashboard');
   const [zoom, setZoom] = useState(1.0);
@@ -56,7 +58,7 @@ export function App() {
   return (
     <div className="flex h-screen bg-background overflow-hidden text-[12px]">
       <aside className="w-40 flex flex-col border-r border-sidebar-border bg-sidebar shrink-0">
-        <div className="drag-region h-[30px] flex items-center px-3 shrink-0">
+        <div className={`drag-region h-[30px] flex items-center pr-3 shrink-0 ${isMac ? 'pl-[70px]' : 'pl-3'}`}>
           <span className="text-[11px] font-semibold text-foreground no-drag select-none tracking-tight">ClankerProxy</span>
         </div>
 
