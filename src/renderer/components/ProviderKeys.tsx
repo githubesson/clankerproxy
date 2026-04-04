@@ -297,9 +297,14 @@ function Section({ provider, keyField }: { provider: string; keyField: string })
       const model = (entry.models ?? []).find((m: any) => (m.name || m.id) === modelName);
       if (!model) return;
 
+      // Claude executor appends /v1/messages, so strip /v1 for Anthropic-style providers
+      const targetBaseUrl = targetProvider === 'openai-compatibility'
+        ? (baseUrl.match(/\/v1\/?$/) ? baseUrl : `${baseUrl.replace(/\/+$/, '')}/v1`)
+        : baseUrl.replace(/\/v1\/?$/, '');
+
       // Add model to target -- merge into existing entry with same base-url
       const targetExisting = await api().providerKeys.list(targetProvider);
-      const targetMatch = targetExisting.findIndex((e: any) => e['base-url'] === baseUrl);
+      const targetMatch = targetExisting.findIndex((e: any) => e['base-url'] === targetBaseUrl);
 
       if (targetMatch >= 0) {
         const merged = { ...targetExisting[targetMatch] };
@@ -310,13 +315,13 @@ function Section({ provider, keyField }: { provider: string; keyField: string })
         let newEntry: any;
         if (targetProvider === 'openai-compatibility') {
           newEntry = {
-            name: entry.name || entry.prefix || (baseUrl ? new URL(baseUrl).hostname : 'moved'),
-            'base-url': baseUrl,
+            name: entry.name || entry.prefix || (targetBaseUrl ? new URL(targetBaseUrl).hostname : 'moved'),
+            'base-url': targetBaseUrl,
             'api-key-entries': [{ 'api-key': existingKey }],
             models: [model],
           };
         } else {
-          newEntry = { 'api-key': existingKey, 'base-url': baseUrl, prefix: entry.name || entry.prefix, models: [model] };
+          newEntry = { 'api-key': existingKey, 'base-url': targetBaseUrl, prefix: entry.name || entry.prefix, models: [model] };
         }
         await api().providerKeys.put(targetProvider, [...targetExisting, newEntry]);
       }
