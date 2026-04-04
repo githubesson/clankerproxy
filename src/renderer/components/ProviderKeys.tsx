@@ -321,7 +321,7 @@ function Section({ provider, keyField }: { provider: string; keyField: string })
             models: [model],
           };
         } else {
-          newEntry = { 'api-key': existingKey, 'base-url': targetBaseUrl, prefix: entry.name || entry.prefix, models: [model] };
+          newEntry = { 'api-key': existingKey, 'base-url': targetBaseUrl, prefix: entry.name || entry.prefix, headers: { 'x-api-key': existingKey }, models: [model] };
         }
         await api().providerKeys.put(targetProvider, [...targetExisting, newEntry]);
       }

@@ -62,7 +62,7 @@ const def: GeneratorDef = {
     const entries: any[] = [];
 
     for (const s of selected) {
-      const baseUrl = s.format === 'openai' ? `http://127.0.0.1:${port}/v1` : `http://127.0.0.1:${port}`;
+      const baseUrl = s.format === 'anthropic' ? `http://127.0.0.1:${port}` : `http://127.0.0.1:${port}/v1`;
       const base = {
         baseUrl, apiKey, provider: s.format,
         ...(s.maxOutputTokens ? { maxOutputTokens: s.maxOutputTokens } : {}),
