@@ -28,7 +28,7 @@ export function Button({
   children, variant = 'default', size = 'default', onClick, disabled, className = '', type = 'button',
 }: {
   children: React.ReactNode; variant?: ButtonVariant; size?: 'default' | 'sm' | 'icon';
-  onClick?: () => void; disabled?: boolean; className?: string; type?: 'button' | 'submit';
+  onClick?: React.MouseEventHandler<HTMLButtonElement>; disabled?: boolean; className?: string; type?: 'button' | 'submit';
 }) {
   const base = 'inline-flex items-center justify-center rounded font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none cursor-default';
   const variants: Record<ButtonVariant, string> = {

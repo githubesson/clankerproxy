@@ -1,36 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useIsProxyRunning, useOAuthLogin } from '../hooks/useIPC';
 import { Card, CardContent, Button, Badge, ProxyRequired } from './ui';
-
-const OAUTH_CATEGORIES = [
-  { label: 'Major Providers', providers: [
-    { id: 'anthropic', label: 'Claude', desc: 'Anthropic OAuth' },
-    { id: 'gemini-cli', label: 'Gemini', desc: 'Google CLI OAuth' },
-    { id: 'codex', label: 'Codex', desc: 'OpenAI Codex OAuth' },
-    { id: 'github', label: 'GitHub Copilot', desc: 'GitHub device code flow' },
-    { id: 'gitlab', label: 'GitLab Duo', desc: 'GitLab OAuth' },
-  ]},
-  { label: 'AWS / Cloud', providers: [
-    { id: 'kiro', label: 'Kiro', desc: 'AWS CodeWhisperer' },
-  ]},
-  { label: 'Community', providers: [
-    { id: 'antigravity', label: 'Antigravity', desc: 'OAuth' },
-    { id: 'kimi', label: 'Kimi', desc: 'Moonshot OAuth' },
-    { id: 'cursor', label: 'Cursor', desc: 'OAuth' },
-    { id: 'qwen', label: 'Qwen', desc: 'Alibaba OAuth' },
-    { id: 'iflow', label: 'iFlow', desc: 'OAuth' },
-    { id: 'kilo', label: 'Kilocode', desc: 'Device code' },
-  ]},
-];
-const ALL = OAUTH_CATEGORIES.flatMap((c) => c.providers);
+import { OAUTH_CATEGORIES, OAUTH_PROVIDERS } from '../../shared/provider-registry';
 
 export function OAuthPanel() {
   const isRunning = useIsProxyRunning();
-  const [selected, setSelected] = useState(ALL[0].id);
+  const [selected, setSelected] = useState(OAUTH_PROVIDERS[0].id);
   const [history, setHistory] = useState<{ id: string; label: string; status: 'pending' | 'success' | 'error'; time: string }[]>([]);
 
   if (!isRunning) return <ProxyRequired />;
-  const provider = ALL.find((p) => p.id === selected) ?? ALL[0];
+  const provider = OAUTH_PROVIDERS.find((p) => p.id === selected) ?? OAUTH_PROVIDERS[0];
 
   return (
     <div className="max-w-md space-y-2">

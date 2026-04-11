@@ -1,5 +1,6 @@
 import React from 'react';
 import { GeneratorShell, type GeneratorDef, type SelectedModel } from './GeneratorShell';
+import { createGeneratorChannelFormatMap } from './shared';
 
 const ANTHROPIC_CHIPS = [
   { value: 'disabled', label: 'Off' },
@@ -23,13 +24,6 @@ const NPM: Record<string, string> = {
   anthropic: '@ai-sdk/anthropic',
   openai: '@ai-sdk/openai',
   'openai-compatible': '@ai-sdk/openai-compatible',
-};
-
-const CHANNEL_FORMAT: Record<string, string> = {
-  claude: 'anthropic', gemini: 'openai-compatible', 'gemini-cli': 'openai-compatible',
-  codex: 'openai', cursor: 'openai-compatible', kimi: 'openai-compatible',
-  qwen: 'openai-compatible', kiro: 'openai-compatible', 'github-copilot': 'openai-compatible',
-  antigravity: 'openai-compatible', iflow: 'openai-compatible', kilo: 'openai-compatible',
 };
 
 function buildThinkingOptions(fmt: string, v: string): Record<string, any> {
@@ -68,7 +62,11 @@ const def: GeneratorDef = {
     { value: 'openai', label: 'OpenAI' },
     { value: 'openai-compatible', label: 'OpenAI Compatible' },
   ],
-  channelFormatMap: CHANNEL_FORMAT,
+  channelFormatMap: createGeneratorChannelFormatMap({
+    anthropic: 'anthropic',
+    openai: 'openai',
+    compat: 'openai-compatible',
+  }),
 
   getThinkingOptions(format) {
     return format === 'anthropic' ? ANTHROPIC_CHIPS : OPENAI_CHIPS;

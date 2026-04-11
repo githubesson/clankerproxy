@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { useIsProxyRunning, useConfig } from '../hooks/useIPC';
-import { useMutation } from '@tanstack/react-query';
+import { useConfig, useIsProxyRunning, useUpdateConfigField } from '../hooks/useIPC';
 import { Card, CardContent, Input, Switch, Select, ProxyRequired, Separator } from './ui';
 
 export function Settings() {
   const isRunning = useIsProxyRunning();
-  const { data: config, refetch } = useConfig();
+  const { data: config } = useConfig();
 
   if (!isRunning) return <ProxyRequired />;
   if (!config) return null;
@@ -16,70 +15,159 @@ export function Settings() {
 
       <Card>
         <CardContent className="p-0">
-          <Toggle label="Debug logging" field="debug" value={config.debug ?? false} onRefresh={refetch} />
+          <ToggleField label="Debug logging" field="debug" value={config.debug ?? false} />
           <Separator />
-          <Toggle label="Usage statistics" field="usage-statistics-enabled" value={config['usage-statistics-enabled'] ?? false} onRefresh={refetch} />
+          <ToggleField label="Usage statistics" field="usage-statistics-enabled" value={config['usage-statistics-enabled'] ?? false} />
           <Separator />
-          <Toggle label="Log to file" field="logging-to-file" value={config['logging-to-file'] ?? false} onRefresh={refetch} />
+          <ToggleField label="Log to file" field="logging-to-file" value={config['logging-to-file'] ?? false} />
           <Separator />
-          <Toggle label="Force model prefix" field="force-model-prefix" value={config['force-model-prefix'] ?? false} onRefresh={refetch} />
+          <ToggleField label="Force model prefix" field="force-model-prefix" value={config['force-model-prefix'] ?? false} />
         </CardContent>
       </Card>
 
       <Card>
         <CardContent className="p-0">
-          <Num label="Request retry" field="request-retry" value={config['request-retry'] ?? 3} onRefresh={refetch} />
+          <BlurInputField
+            label="Request retry"
+            field="request-retry"
+            value={config['request-retry'] ?? 3}
+            parse={(draft) => {
+              const parsed = parseInt(draft, 10);
+              return Number.isNaN(parsed) ? null : parsed;
+            }}
+            inputProps={{ type: 'number', className: 'w-16 text-right' }}
+          />
           <Separator />
-          <Sel label="Routing" field="routing/strategy" value={config.routing?.strategy ?? 'round-robin'}
-            options={[{ value: 'round-robin', label: 'Round Robin' }, { value: 'fill-first', label: 'Fill First' }]} onRefresh={refetch} />
+          <SelectField
+            label="Routing"
+            field="routing/strategy"
+            value={config.routing?.strategy ?? 'round-robin'}
+            options={[
+              { value: 'round-robin', label: 'Round Robin' },
+              { value: 'fill-first', label: 'Fill First' },
+            ]}
+          />
           <Separator />
-          <Txt label="Proxy URL" field="proxy-url" value={config['proxy-url'] ?? ''} placeholder="socks5://host:port" onRefresh={refetch} />
+          <BlurInputField
+            label="Proxy URL"
+            field="proxy-url"
+            value={config['proxy-url'] ?? ''}
+            parse={(draft) => draft}
+            stacked
+            inputProps={{ placeholder: 'socks5://host:port' }}
+          />
         </CardContent>
       </Card>
     </div>
   );
 }
 
-function Toggle({ label, field, value, onRefresh }: { label: string; field: string; value: boolean; onRefresh: () => void }) {
-  const m = useMutation({ mutationFn: (v: boolean) => window.clankerProxy.config.updateField(field, v), onSuccess: () => onRefresh() });
+function ToggleField({ label, field, value }: { label: string; field: string; value: boolean }) {
+  const updateField = useConfigFieldMutation<boolean>(field);
+
+  return (
+    <SettingRow label={label}>
+      <Switch checked={value} onCheckedChange={(nextValue) => updateField.mutate(nextValue)} disabled={updateField.isPending} />
+    </SettingRow>
+  );
+}
+
+function SelectField({
+  label,
+  field,
+  value,
+  options,
+}: {
+  label: string;
+  field: string;
+  value: string;
+  options: { value: string; label: string }[];
+}) {
+  const updateField = useConfigFieldMutation<string>(field);
+
+  return (
+    <SettingRow label={label}>
+      <Select value={value} onChange={(nextValue) => updateField.mutate(nextValue)} options={options} />
+    </SettingRow>
+  );
+}
+
+function BlurInputField<TValue extends string | number>({
+  label,
+  field,
+  value,
+  parse,
+  stacked = false,
+  inputProps,
+}: {
+  label: string;
+  field: string;
+  value: TValue;
+  parse: (draft: string) => TValue | null;
+  stacked?: boolean;
+  inputProps?: { type?: string; className?: string; placeholder?: string };
+}) {
+  const updateField = useConfigFieldMutation<TValue>(field);
+  const [draft, setDraft] = useState(String(value));
+
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  const commit = () => {
+    const nextValue = parse(draft);
+    if (nextValue === null || Object.is(nextValue, value)) {
+      return;
+    }
+
+    updateField.mutate(nextValue);
+  };
+
+  return (
+    <SettingRow label={label} stacked={stacked}>
+      <Input
+        type={inputProps?.type}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        placeholder={inputProps?.placeholder}
+        className={inputProps?.className}
+      />
+    </SettingRow>
+  );
+}
+
+function SettingRow({
+  label,
+  children,
+  stacked = false,
+}: {
+  label: string;
+  children: React.ReactNode;
+  stacked?: boolean;
+}) {
+  if (stacked) {
+    return (
+      <div className="px-3 py-2 space-y-1">
+        <span className="text-[11px] text-foreground">{label}</span>
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center justify-between px-3 py-2">
       <span className="text-[11px] text-foreground">{label}</span>
-      <Switch checked={value} onCheckedChange={(v) => m.mutate(v)} />
+      {children}
     </div>
   );
 }
 
-function Num({ label, field, value, onRefresh }: { label: string; field: string; value: number; onRefresh: () => void }) {
-  const [l, setL] = useState(String(value));
-  useEffect(() => { setL(String(value)); }, [value]);
-  const m = useMutation({ mutationFn: (v: number) => window.clankerProxy.config.updateField(field, v), onSuccess: () => onRefresh() });
-  return (
-    <div className="flex items-center justify-between px-3 py-2">
-      <span className="text-[11px] text-foreground">{label}</span>
-      <Input type="number" value={l} onChange={(e) => setL(e.target.value)} onBlur={() => { const n = parseInt(l); if (!isNaN(n) && n !== value) m.mutate(n); }} className="w-16 text-right" />
-    </div>
-  );
-}
+function useConfigFieldMutation<TValue>(field: string) {
+  const updateField = useUpdateConfigField();
 
-function Sel({ label, field, value, options, onRefresh }: { label: string; field: string; value: string; options: { value: string; label: string }[]; onRefresh: () => void }) {
-  const m = useMutation({ mutationFn: (v: string) => window.clankerProxy.config.updateField(field, v), onSuccess: () => onRefresh() });
-  return (
-    <div className="flex items-center justify-between px-3 py-2">
-      <span className="text-[11px] text-foreground">{label}</span>
-      <Select value={value} onChange={(v) => m.mutate(v)} options={options} />
-    </div>
-  );
-}
-
-function Txt({ label, field, value, placeholder, onRefresh }: { label: string; field: string; value: string; placeholder: string; onRefresh: () => void }) {
-  const [l, setL] = useState(value);
-  useEffect(() => { setL(value); }, [value]);
-  const m = useMutation({ mutationFn: (v: string) => window.clankerProxy.config.updateField(field, v), onSuccess: () => onRefresh() });
-  return (
-    <div className="px-3 py-2 space-y-1">
-      <span className="text-[11px] text-foreground">{label}</span>
-      <Input value={l} onChange={(e) => setL(e.target.value)} onBlur={() => { if (l !== value) m.mutate(l); }} placeholder={placeholder} />
-    </div>
-  );
+  return {
+    ...updateField,
+    mutate: (value: TValue) => updateField.mutate({ field, value }),
+  };
 }

@@ -162,7 +162,7 @@ export class ProxyManager extends EventEmitter {
     // Poll for readiness with exponential backoff (matching TUI pattern)
     let backoff = 100;
     for (let i = 0; i < 30; i++) {
-      if (this._state !== 'starting') return; // cancelled
+      if (this.state !== 'starting') return; // cancelled
       const ready = await this._client.healthCheck();
       if (ready) {
         this.setState('running');

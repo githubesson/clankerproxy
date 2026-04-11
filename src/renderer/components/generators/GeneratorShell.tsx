@@ -1,15 +1,15 @@
-import React, { useState, useMemo } from 'react';
-import { useProxyStatus, useAPIKeys } from '../../hooks/useIPC';
+import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useAPIKeys, useModelDefinitions, useModelsDevCatalog, useProxyStatus } from '../../hooks/useIPC';
+import { isCustomChannel, resolveCustomChannelModels } from '../../lib/customModels';
+import { maskSecret } from '../../lib/providerKeys';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Input, Badge, Select } from '../ui';
-
-/* ── Types ── */
 
 export interface SelectedModel {
   id: string;
   displayName: string;
   format: string;
-  variants: string[]; // selected thinking levels/suffixes
+  variants: string[];
   channel: string;
   maxOutputTokens: number;
   contextLength: number;
@@ -20,13 +20,9 @@ export interface GeneratorDef {
   description: string;
   apiKeyPlaceholder: string;
   formats: { value: string; label: string }[];
-  /** Map channel to default format */
   channelFormatMap: Record<string, string>;
-  /** Return available thinking chips for a given format */
   getThinkingOptions: (format: string) => { value: string; label: string }[];
-  /** Human-readable name for a variant value (e.g. "128000" -> "max") */
   getVariantName?: (format: string, value: string) => string;
-  /** Build the final JSON output */
   buildOutput: (ctx: {
     selected: SelectedModel[];
     port: number;
@@ -39,190 +35,72 @@ interface Props {
   availableChannels: { channel: string; label: string }[];
 }
 
-/* ── Component ── */
-
 export function GeneratorShell({ def, availableChannels }: Props) {
-  // Infer API format from channel type
-  function inferFormat(ch: string): string {
-    if (ch.startsWith('custom-claude:')) return 'anthropic';
-    // custom: entries are openai-compatibility (chat completions), not openai (responses)
-    if (ch.startsWith('custom:')) {
-      return def.formats.find((f) => f.value === 'openai-compatible' || f.value === 'openai-compat' || f.value === 'generic-chat-completion-api')?.value
-        ?? def.formats.find((f) => f.value.includes('compat'))?.value
-        ?? def.formats[0].value;
-    }
-    return def.channelFormatMap[ch] ?? def.formats[0].value;
-  }
-
   const { data: status } = useProxyStatus();
   const { data: apiKeys } = useAPIKeys();
   const port = status?.port ?? 8317;
 
   const [channel, setChannel] = useState(availableChannels[0]?.channel ?? 'claude');
-  const [format, setFormat] = useState(() => inferFormat(availableChannels[0]?.channel ?? 'claude'));
+  const [format, setFormat] = useState(() => inferFormat(availableChannels[0]?.channel ?? 'claude', def.formats, def.channelFormatMap));
   const [selected, setSelected] = useState<SelectedModel[]>([]);
   const [apiKeyRef, setApiKeyRef] = useState(def.apiKeyPlaceholder);
   const [copied, setCopied] = useState(false);
 
-  const isCustomChannel = channel.startsWith('custom:') || channel.startsWith('custom-claude:');
-
-  // Fetch models from proxy registry for built-in channels
-  const { data: modelData } = useQuery({
-    queryKey: ['models', channel],
-    queryFn: () => window.clankerProxy.models.get(channel),
-    enabled: !isCustomChannel,
-    staleTime: 60000,
-  });
-
-  // Fetch models.dev catalog for enriching custom channel models
-  const { data: modelsCatalog } = useQuery({
-    queryKey: ['modelsDev'],
-    queryFn: () => window.clankerProxy.modelsDev.get(),
-    enabled: isCustomChannel,
-    staleTime: 600000,
-  });
-
-  // Fetch models from configured provider entries for custom channels, enriched with models.dev data
+  const customChannel = isCustomChannel(channel);
+  const { data: modelData } = useModelDefinitions(channel, !customChannel);
+  const { data: modelsCatalog } = useModelsDevCatalog(customChannel);
   const { data: customModels } = useQuery({
-    queryKey: ['customModels', channel, !!modelsCatalog],
-    queryFn: async () => {
-      const api = window.clankerProxy;
-
-      // Find the provider entry and its models
-      let providerModels: any[] = [];
-      let providerName = '';
-      if (channel.startsWith('custom:')) {
-        providerName = channel.slice('custom:'.length);
-        const entries = await api.providerKeys.list('openai-compatibility');
-        const entry = entries?.find((e: any) => e.name === providerName);
-        providerModels = entry?.models ?? [];
-      } else if (channel.startsWith('custom-claude:')) {
-        const label = channel.slice('custom-claude:'.length);
-        const entries = await api.providerKeys.list('claude-api-key');
-        const entry = entries?.find((e: any) => (e.prefix || new URL(e['base-url']).hostname) === label);
-        providerModels = entry?.models ?? [];
-        providerName = label;
-      }
-
-      // Look up models.dev metadata for this provider
-      const catalogProvider = modelsCatalog?.[providerName];
-      const catalogModels = catalogProvider?.models ?? {};
-
-      return providerModels.map((m: any) => {
-        const modelId = m.name || m.alias || m.id;
-        const devData = catalogModels[modelId] ?? {};
-        return {
-          id: modelId,
-          display_name: devData.name || m.alias || m.name,
-          max_completion_tokens: devData.limit?.output ?? 0,
-          context_length: devData.limit?.context ?? 0,
-          reasoning: devData.reasoning ?? false,
-          tool_call: devData.tool_call ?? false,
-        };
-      });
-    },
-    enabled: isCustomChannel,
+    queryKey: ['customModels', channel, Boolean(modelsCatalog)],
+    queryFn: () => resolveCustomChannelModels(window.clankerProxy, channel, modelsCatalog),
+    enabled: customChannel,
     staleTime: 10000,
   });
 
-  // Also try to match by scanning all catalog providers for models (fuzzy match for renamed providers)
-  const { data: customModelsFallback } = useQuery({
-    queryKey: ['customModelsFallback', channel, !!modelsCatalog],
-    queryFn: async () => {
-      if (!modelsCatalog) return null;
-      const api = window.clankerProxy;
-
-      let providerModels: any[] = [];
-      if (channel.startsWith('custom:')) {
-        const name = channel.slice('custom:'.length);
-        const entries = await api.providerKeys.list('openai-compatibility');
-        providerModels = entries?.find((e: any) => e.name === name)?.models ?? [];
-      } else if (channel.startsWith('custom-claude:')) {
-        const label = channel.slice('custom-claude:'.length);
-        const entries = await api.providerKeys.list('claude-api-key');
-        const entry = entries?.find((e: any) => (e.prefix || new URL(e['base-url']).hostname) === label);
-        providerModels = entry?.models ?? [];
-      }
-
-      // Build a flat lookup of all models across all catalog providers
-      const allModels: Record<string, any> = {};
-      for (const prov of Object.values(modelsCatalog) as any[]) {
-        for (const [id, model] of Object.entries(prov.models ?? {}) as any[]) {
-          allModels[id] = model;
-        }
-      }
-
-      return providerModels.map((m: any) => {
-        const modelId = m.name || m.alias || m.id;
-        const devData = allModels[modelId] ?? {};
-        return {
-          id: modelId,
-          display_name: devData.name || m.alias || m.name,
-          max_completion_tokens: devData.limit?.output ?? 0,
-          context_length: devData.limit?.context ?? 0,
-          reasoning: devData.reasoning ?? false,
-          tool_call: devData.tool_call ?? false,
-        };
-      });
-    },
-    enabled: isCustomChannel && !!modelsCatalog,
-    staleTime: 10000,
-  });
-
-  // Use enriched custom models, falling back to the basic ones, then fallback scan
-  const resolvedCustomModels = (() => {
-    const primary = customModels ?? [];
-    // If primary has no token data, try fallback
-    if (primary.length > 0 && primary.every((m: any) => !m.context_length)) {
-      return customModelsFallback ?? primary;
-    }
-    return primary;
-  })();
-
-  const models = isCustomChannel ? resolvedCustomModels : (modelData?.models ?? []);
-
-  const addModel = (m: any) => {
-    if (selected.find((s) => s.id === m.id)) return;
-    setSelected((prev) => [...prev, {
-      id: m.id, displayName: m.display_name || m.id, format,
-      variants: [], channel,
-      maxOutputTokens: m.max_completion_tokens || m.outputTokenLimit || 16384,
-      contextLength: m.context_length || m.inputTokenLimit || 0,
-    }]);
-  };
-
-  const removeModel = (id: string) => setSelected((prev) => prev.filter((s) => s.id !== id));
-
-  const toggleVariant = (id: string, variant: string) => {
-    setSelected((prev) => prev.map((s) => {
-      if (s.id !== id) return s;
-      const has = s.variants.includes(variant);
-      return { ...s, variants: has ? s.variants.filter((v) => v !== variant) : [...s.variants, variant] };
-    }));
-  };
-
-  const updateFormat = (id: string, newFormat: string) => {
-    setSelected((prev) => prev.map((s) => s.id === id ? { ...s, format: newFormat, variants: [] } : s));
-  };
-
-  const addAll = () => {
-    const newModels = models
-      .filter((m: any) => !selected.find((s) => s.id === m.id))
-      .map((m: any) => ({
-        id: m.id, displayName: m.display_name || m.id, format,
-        variants: [], channel,
-        maxOutputTokens: m.max_completion_tokens || m.outputTokenLimit || 16384,
-        contextLength: m.context_length || m.inputTokenLimit || 0,
-      }));
-    setSelected((prev) => [...prev, ...newModels]);
-  };
-
+  const models = customChannel ? (customModels ?? []) : (modelData?.models ?? []);
   const output = useMemo(
     () => def.buildOutput({ selected, port, apiKey: apiKeyRef }),
     [selected, port, apiKeyRef, def],
   );
-
   const jsonOutput = JSON.stringify(output, null, 2);
+
+  const addModel = (model: any) => {
+    setSelected((previous) => {
+      if (previous.some((entry) => entry.id === model.id)) {
+        return previous;
+      }
+
+      return [...previous, toSelectedModel(model, format, channel)];
+    });
+  };
+
+  const addAll = () => {
+    setSelected((previous) => {
+      const selectedIds = new Set(previous.map((entry) => entry.id));
+      const nextModels = models
+        .filter((model: any) => !selectedIds.has(model.id))
+        .map((model: any) => toSelectedModel(model, format, channel));
+
+      return [...previous, ...nextModels];
+    });
+  };
+
+  const removeModel = (id: string) => setSelected((previous) => previous.filter((entry) => entry.id !== id));
+
+  const toggleVariant = (id: string, variant: string) => {
+    setSelected((previous) => previous.map((entry) => {
+      if (entry.id !== id) return entry;
+
+      return entry.variants.includes(variant)
+        ? { ...entry, variants: entry.variants.filter((value) => value !== variant) }
+        : { ...entry, variants: [...entry.variants, variant] };
+    }));
+  };
+
+  const updateFormat = (id: string, nextFormat: string) => {
+    setSelected((previous) => previous.map((entry) =>
+      entry.id === id ? { ...entry, format: nextFormat, variants: [] } : entry,
+    ));
+  };
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(jsonOutput);
@@ -232,7 +110,6 @@ export function GeneratorShell({ def, availableChannels }: Props) {
 
   return (
     <>
-      {/* Config */}
       <Card>
         <CardHeader>
           <CardTitle>{def.name}</CardTitle>
@@ -249,6 +126,7 @@ export function GeneratorShell({ def, availableChannels }: Props) {
               <Input value={`127.0.0.1:${port}`} onChange={() => {}} disabled />
             </div>
           </div>
+
           {apiKeys && apiKeys.length > 0 && (
             <div className="space-y-1">
               <label className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">Use configured key</label>
@@ -257,8 +135,8 @@ export function GeneratorShell({ def, availableChannels }: Props) {
                 className="flex h-6 w-full rounded border border-input bg-transparent px-2 text-[11px] text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <option value="">Select...</option>
-                {apiKeys.map((k, i) => (
-                  <option key={i} value={k}>{k.length > 20 ? `${k.slice(0, 12)}··${k.slice(-4)}` : k}</option>
+                {apiKeys.map((key: string, index: number) => (
+                  <option key={index} value={key}>{maskSecret(key)}</option>
                 ))}
               </select>
             </div>
@@ -266,33 +144,35 @@ export function GeneratorShell({ def, availableChannels }: Props) {
         </CardContent>
       </Card>
 
-      {/* Model picker */}
       <Card>
         <CardContent className="space-y-2">
           <div className="flex items-center gap-2">
             <Select
               value={channel}
-              onChange={(v) => { setChannel(v); setFormat(inferFormat(v)); }}
-              options={availableChannels.map((c) => ({ value: c.channel, label: c.label }))}
+              onChange={(nextChannel) => {
+                setChannel(nextChannel);
+                setFormat(inferFormat(nextChannel, def.formats, def.channelFormatMap));
+              }}
+              options={availableChannels.map((option) => ({ value: option.channel, label: option.label }))}
             />
             <Select value={format} onChange={setFormat} options={def.formats} />
             <Button variant="outline" size="sm" onClick={addAll}>Add All</Button>
           </div>
 
           <div className="max-h-40 overflow-y-auto space-y-px">
-            {models.map((m: any) => {
-              const isAdded = selected.some((s) => s.id === m.id);
+            {models.map((model: any) => {
+              const isAdded = selected.some((entry) => entry.id === model.id);
               return (
-                <div key={m.id} className="flex items-center gap-2 py-0.5">
+                <div key={model.id} className="flex items-center gap-2 py-0.5">
                   <button
-                    onClick={() => isAdded ? removeModel(m.id) : addModel(m)}
+                    onClick={() => isAdded ? removeModel(model.id) : addModel(model)}
                     className={`flex-1 text-left px-2 py-1 rounded text-[10px] font-mono truncate transition-colors ${
                       isAdded ? 'bg-accent/10 text-accent' : 'hover:bg-muted/40 text-muted-foreground'
                     }`}
                   >
-                    {m.id}
+                    {model.id}
                   </button>
-                  {isAdded && <Badge variant="success">✓</Badge>}
+                  {isAdded && <Badge variant="success">OK</Badge>}
                 </div>
               );
             })}
@@ -303,7 +183,6 @@ export function GeneratorShell({ def, availableChannels }: Props) {
         </CardContent>
       </Card>
 
-      {/* Selected with variant chips */}
       {selected.length > 0 && (
         <Card>
           <CardHeader>
@@ -311,38 +190,40 @@ export function GeneratorShell({ def, availableChannels }: Props) {
             <CardDescription>Toggle thinking levels per model.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            {selected.map((s, i) => {
-              const chips = def.getThinkingOptions(s.format);
+            {selected.map((model, index) => {
+              const chips = def.getThinkingOptions(model.format);
               return (
-                <div key={s.id} className={`px-3 py-2 ${i > 0 ? 'border-t border-border' : ''}`}>
+                <div key={model.id} className={`px-3 py-2 ${index > 0 ? 'border-t border-border' : ''}`}>
                   <div className="flex items-center gap-2 mb-1.5">
-                    <code className="text-[10px] font-mono text-foreground flex-1 truncate">{s.id}</code>
-                    <Select value={s.format} onChange={(v) => updateFormat(s.id, v)} options={def.formats} />
-                    <button onClick={() => removeModel(s.id)} className="text-[10px] text-muted-foreground hover:text-destructive transition-colors">×</button>
+                    <code className="text-[10px] font-mono text-foreground flex-1 truncate">{model.id}</code>
+                    <Select value={model.format} onChange={(value) => updateFormat(model.id, value)} options={def.formats} />
+                    <button onClick={() => removeModel(model.id)} className="text-[10px] text-muted-foreground hover:text-destructive transition-colors">
+                      X
+                    </button>
                   </div>
                   {chips.length > 0 && (
                     <div className="flex flex-wrap gap-1">
-                      {chips.map((c) => {
-                        const active = s.variants.includes(c.value);
+                      {chips.map((chip) => {
+                        const active = model.variants.includes(chip.value);
                         return (
                           <button
-                            key={c.value}
-                            onClick={() => toggleVariant(s.id, c.value)}
+                            key={chip.value}
+                            onClick={() => toggleVariant(model.id, chip.value)}
                             className={`px-1.5 py-0.5 rounded text-[9px] border transition-colors ${
                               active
                                 ? 'bg-accent/15 text-accent border-accent/30'
                                 : 'bg-transparent text-muted-foreground/60 border-border hover:border-muted-foreground/30 hover:text-muted-foreground'
                             }`}
                           >
-                            {c.label}
+                            {chip.label}
                           </button>
                         );
                       })}
                     </div>
                   )}
-                  {s.variants.length > 0 && (
+                  {model.variants.length > 0 && (
                     <p className="text-[9px] text-muted-foreground/40 mt-1">
-                      {s.variants.length} variant{s.variants.length !== 1 ? 's' : ''}: {s.variants.map((v) => def.getVariantName?.(s.format, v) ?? v).join(', ')}
+                      {model.variants.length} variant{model.variants.length !== 1 ? 's' : ''}: {model.variants.map((variant) => def.getVariantName?.(model.format, variant) ?? variant).join(', ')}
                     </p>
                   )}
                 </div>
@@ -352,7 +233,6 @@ export function GeneratorShell({ def, availableChannels }: Props) {
         </Card>
       )}
 
-      {/* Output */}
       {selected.length > 0 && (
         <Card>
           <CardHeader>
@@ -373,4 +253,33 @@ export function GeneratorShell({ def, availableChannels }: Props) {
       )}
     </>
   );
+}
+
+function inferFormat(
+  channel: string,
+  formats: { value: string; label: string }[],
+  channelFormatMap: Record<string, string>,
+): string {
+  if (channel.startsWith('custom-claude:')) return 'anthropic';
+  if (channel.startsWith('custom:')) {
+    return formats.find((format) =>
+      format.value === 'openai-compatible' || format.value === 'openai-compat' || format.value === 'generic-chat-completion-api',
+    )?.value
+      ?? formats.find((format) => format.value.includes('compat'))?.value
+      ?? formats[0].value;
+  }
+
+  return channelFormatMap[channel] ?? formats[0].value;
+}
+
+function toSelectedModel(model: any, format: string, channel: string): SelectedModel {
+  return {
+    id: model.id,
+    displayName: model.display_name || model.id,
+    format,
+    variants: [],
+    channel,
+    maxOutputTokens: model.max_completion_tokens || model.outputTokenLimit || 16384,
+    contextLength: model.context_length || model.inputTokenLimit || 0,
+  };
 }

@@ -1,40 +1,11 @@
 import React from 'react';
-import { GeneratorShell, type GeneratorDef, type SelectedModel } from './GeneratorShell';
+import { GeneratorShell, type GeneratorDef } from './GeneratorShell';
+import { createGeneratorChannelFormatMap, getSuffixThinkingOptions, stripSuffixVariant } from './shared';
 
-const SUFFIX_CHIPS: Record<string, { value: string; label: string }[]> = {
-  claude: [
-    { value: '(none)', label: 'Off' },
-    { value: '(low)', label: 'Low' },
-    { value: '(medium)', label: 'Medium' },
-    { value: '(high)', label: 'High' },
-    { value: '(xhigh)', label: 'XHigh' },
-    { value: '(max)', label: 'Max' },
-  ],
-  openai: [
-    { value: '(none)', label: 'Off' },
-    { value: '(low)', label: 'Low' },
-    { value: '(medium)', label: 'Medium' },
-    { value: '(high)', label: 'High' },
-    { value: '(xhigh)', label: 'XHigh' },
-  ],
-  gemini: [
-    { value: '(none)', label: 'Off' },
-    { value: '(low)', label: 'Low' },
-    { value: '(medium)', label: 'Medium' },
-    { value: '(high)', label: 'High' },
-    { value: '(xhigh)', label: 'XHigh' },
-    { value: '(max)', label: 'Max' },
-  ],
-};
-
-const FORMAT_FAMILY: Record<string, string> = {
-  anthropic: 'claude', openai: 'openai', 'generic-chat-completion-api': 'openai',
-};
-
-const CHANNEL_FORMAT: Record<string, string> = {
-  claude: 'anthropic', gemini: 'openai', 'gemini-cli': 'openai', codex: 'openai',
-  cursor: 'openai', kimi: 'openai', qwen: 'openai', kiro: 'openai',
-  'github-copilot': 'openai', antigravity: 'openai', iflow: 'openai', kilo: 'openai',
+const FORMAT_FAMILY: Record<string, 'claude' | 'openai'> = {
+  anthropic: 'claude',
+  openai: 'openai',
+  'generic-chat-completion-api': 'openai',
 };
 
 const def: GeneratorDef = {
@@ -46,38 +17,43 @@ const def: GeneratorDef = {
     { value: 'openai', label: 'OpenAI' },
     { value: 'generic-chat-completion-api', label: 'Generic' },
   ],
-  channelFormatMap: CHANNEL_FORMAT,
+  channelFormatMap: createGeneratorChannelFormatMap({
+    anthropic: 'anthropic',
+    openai: 'openai',
+    compat: 'openai',
+  }),
 
   getThinkingOptions(format) {
-    const family = FORMAT_FAMILY[format] ?? 'openai';
-    return SUFFIX_CHIPS[family] ?? SUFFIX_CHIPS.openai;
+    return getSuffixThinkingOptions(format, FORMAT_FAMILY);
   },
 
   getVariantName(_format, value) {
-    // "(high)" -> "high", "(max)" -> "max"
-    return value.replace(/[()]/g, '');
+    return stripSuffixVariant(value);
   },
 
   buildOutput({ selected, port, apiKey }) {
     const entries: any[] = [];
 
-    for (const s of selected) {
-      const baseUrl = s.format === 'anthropic' ? `http://127.0.0.1:${port}` : `http://127.0.0.1:${port}/v1`;
+    for (const model of selected) {
+      const baseUrl = model.format === 'anthropic' ? `http://127.0.0.1:${port}` : `http://127.0.0.1:${port}/v1`;
       const base = {
-        baseUrl, apiKey, provider: s.format,
-        ...(s.maxOutputTokens ? { maxOutputTokens: s.maxOutputTokens } : {}),
+        baseUrl,
+        apiKey,
+        provider: model.format,
+        ...(model.maxOutputTokens ? { maxOutputTokens: model.maxOutputTokens } : {}),
       };
 
-      if (s.variants.length === 0) {
-        entries.push({ model: s.id, displayName: `[clanker] ${s.displayName}`, ...base });
-      } else {
-        for (const suffix of s.variants) {
-          entries.push({
-            model: `${s.id}${suffix}`,
-            displayName: `[clanker] ${s.displayName} ${suffix}`,
-            ...base,
-          });
-        }
+      if (model.variants.length === 0) {
+        entries.push({ model: model.id, displayName: `[clanker] ${model.displayName}`, ...base });
+        continue;
+      }
+
+      for (const suffix of model.variants) {
+        entries.push({
+          model: `${model.id}${suffix}`,
+          displayName: `[clanker] ${model.displayName} ${suffix}`,
+          ...base,
+        });
       }
     }
 

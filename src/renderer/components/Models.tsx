@@ -1,38 +1,14 @@
 import React, { useState } from 'react';
-import { useIsProxyRunning } from '../hooks/useIPC';
-import { useQuery } from '@tanstack/react-query';
+import { useIsProxyRunning, useModelDefinitions } from '../hooks/useIPC';
 import { Card, CardContent, Badge, Select, Input, ProxyRequired } from './ui';
-
-const CHANNELS = [
-  { value: 'claude', label: 'Claude' },
-  { value: 'gemini', label: 'Gemini' },
-  { value: 'gemini-cli', label: 'Gemini CLI' },
-  { value: 'vertex', label: 'Vertex' },
-  { value: 'codex', label: 'Codex' },
-  { value: 'cursor', label: 'Cursor' },
-  { value: 'kimi', label: 'Kimi' },
-  { value: 'qwen', label: 'Qwen' },
-  { value: 'kiro', label: 'Kiro' },
-  { value: 'github-copilot', label: 'GitHub Copilot' },
-  { value: 'antigravity', label: 'Antigravity' },
-  { value: 'iflow', label: 'iFlow' },
-  { value: 'kilo', label: 'Kilocode' },
-  { value: 'amazonq', label: 'Amazon Q' },
-  { value: 'codebuddy', label: 'CodeBuddy' },
-  { value: 'aistudio', label: 'AI Studio' },
-];
+import { MODEL_CHANNEL_OPTIONS } from '../../shared/provider-registry';
 
 export function Models() {
   const isRunning = useIsProxyRunning();
   const [channel, setChannel] = useState('claude');
   const [filter, setFilter] = useState('');
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['models', channel],
-    queryFn: () => window.clankerProxy.models.get(channel),
-    enabled: isRunning,
-    staleTime: 60000,
-  });
+  const { data, isLoading, error } = useModelDefinitions(channel);
 
   if (!isRunning) return <ProxyRequired />;
 
@@ -48,7 +24,7 @@ export function Models() {
     <div className="max-w-lg space-y-2">
       <div className="flex items-center gap-2">
         <p className="text-[10px] text-muted-foreground flex-1">Available models per provider.</p>
-        <Select value={channel} onChange={(v) => { setChannel(v); setFilter(''); }} options={CHANNELS} />
+        <Select value={channel} onChange={(v) => { setChannel(v); setFilter(''); }} options={MODEL_CHANNEL_OPTIONS} />
       </div>
 
       <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter models..." />

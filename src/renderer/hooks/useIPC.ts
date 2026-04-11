@@ -1,6 +1,6 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState, useCallback } from 'react';
-import type { ClankerProxyAPI } from '../../preload/index';
+import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import type { ClankerProxyAPI } from '../../preload/preload';
 
 declare global {
   interface Window {
@@ -9,6 +9,60 @@ declare global {
 }
 
 const api = () => window.clankerProxy;
+
+function useInvalidateQueriesMutation<TVariables = void, TResult = void>({
+  mutationFn,
+  queryKeys,
+  invalidateOn = 'success',
+}: {
+  mutationFn: (variables: TVariables) => Promise<TResult>;
+  queryKeys: QueryKey[];
+  invalidateOn?: 'success' | 'settled';
+}) {
+  const queryClient = useQueryClient();
+
+  const invalidate = () =>
+    Promise.all(queryKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey })));
+
+  return useMutation({
+    mutationFn,
+    onSuccess: async () => {
+      if (invalidateOn === 'success') {
+        await invalidate();
+      }
+    },
+    onSettled: async () => {
+      if (invalidateOn === 'settled') {
+        await invalidate();
+      }
+    },
+  });
+}
+
+function useProxyQuery<TData>({
+  queryKey,
+  queryFn,
+  refetchInterval = false,
+  staleTime,
+  enabled = true,
+}: {
+  queryKey: QueryKey;
+  queryFn: () => Promise<TData> | TData;
+  refetchInterval?: number | false;
+  staleTime?: number;
+  enabled?: boolean;
+}) {
+  const running = useIsProxyRunning();
+  const isEnabled = running && enabled;
+
+  return useQuery({
+    queryKey,
+    queryFn,
+    enabled: isEnabled,
+    staleTime,
+    refetchInterval: isEnabled ? refetchInterval : false,
+  });
+}
 
 // Proxy status
 export function useProxyStatus() {
@@ -23,7 +77,7 @@ export function useProxyStatus() {
       query.refetch();
     });
     return unsub;
-  }, [query]);
+  }, [query.refetch]);
 
   return query;
 }
@@ -35,26 +89,32 @@ export function useIsProxyRunning(): boolean {
 }
 
 export function useStartProxy() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => api().proxy.start(),
-    onSettled: () => qc.invalidateQueries({ queryKey: ['proxy', 'status'] }),
+  return useInvalidateQueriesMutation<void, void>({
+    mutationFn: async () => {
+      await api().proxy.start();
+    },
+    queryKeys: [['proxy', 'status']],
+    invalidateOn: 'settled',
   });
 }
 
 export function useStopProxy() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => api().proxy.stop(),
-    onSettled: () => qc.invalidateQueries({ queryKey: ['proxy', 'status'] }),
+  return useInvalidateQueriesMutation<void, void>({
+    mutationFn: async () => {
+      await api().proxy.stop();
+    },
+    queryKeys: [['proxy', 'status']],
+    invalidateOn: 'settled',
   });
 }
 
 export function useRestartProxy() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => api().proxy.restart(),
-    onSettled: () => qc.invalidateQueries({ queryKey: ['proxy', 'status'] }),
+  return useInvalidateQueriesMutation<void, void>({
+    mutationFn: async () => {
+      await api().proxy.restart();
+    },
+    queryKeys: [['proxy', 'status']],
+    invalidateOn: 'settled',
   });
 }
 
@@ -70,10 +130,10 @@ export function useBinaryStatus() {
 }
 
 export function useDownloadBinary() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (release?: any) => api().binary.download(release),
-    onSettled: () => qc.invalidateQueries({ queryKey: ['binary'] }),
+  return useInvalidateQueriesMutation<void, string>({
+    mutationFn: () => api().binary.download(),
+    queryKeys: [['binary']],
+    invalidateOn: 'settled',
   });
 }
 
@@ -87,67 +147,78 @@ export function useCheckUpdate() {
 
 // API Keys — auto-fetches when proxy is running, polls every 5s
 export function useAPIKeys() {
-  const running = useIsProxyRunning();
-  return useQuery({
+  return useProxyQuery({
     queryKey: ['apiKeys'],
     queryFn: () => api().apiKeys.list(),
-    enabled: running,
-    refetchInterval: running ? 5000 : false,
+    refetchInterval: 5000,
   });
 }
 
 export function useAddAPIKey() {
-  const qc = useQueryClient();
-  return useMutation({
+  return useInvalidateQueriesMutation({
     mutationFn: (key: string) => api().apiKeys.add(key),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['apiKeys'] }),
+    queryKeys: [['apiKeys']],
   });
 }
 
 export function useDeleteAPIKey() {
-  const qc = useQueryClient();
-  return useMutation({
+  return useInvalidateQueriesMutation({
     mutationFn: (index: number) => api().apiKeys.delete(index),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['apiKeys'] }),
+    queryKeys: [['apiKeys']],
   });
 }
 
 // Provider Keys
 export function useProviderKeys(provider: string) {
-  const running = useIsProxyRunning();
-  return useQuery({
+  return useProxyQuery({
     queryKey: ['providerKeys', provider],
     queryFn: () => api().providerKeys.list(provider),
-    enabled: running,
-    refetchInterval: running ? 5000 : false,
+    refetchInterval: 5000,
+  });
+}
+
+export function usePatchProviderKeys(provider: string) {
+  return useInvalidateQueriesMutation({
+    mutationFn: (body: any) => api().providerKeys.patch(provider, body),
+    queryKeys: [['providerKeys']],
+  });
+}
+
+export function usePutProviderKeys(provider: string) {
+  return useInvalidateQueriesMutation({
+    mutationFn: (entries: any[]) => api().providerKeys.put(provider, entries),
+    queryKeys: [['providerKeys']],
+  });
+}
+
+export function useDeleteProviderKey(provider: string) {
+  return useInvalidateQueriesMutation({
+    mutationFn: (index: number) => api().providerKeys.delete(provider, index),
+    queryKeys: [['providerKeys']],
   });
 }
 
 // Auth Files — auto-fetches when proxy is running, polls every 3s
 export function useAuthFiles() {
-  const running = useIsProxyRunning();
-  return useQuery({
+  return useProxyQuery({
     queryKey: ['authFiles'],
     queryFn: () => api().authFiles.list(),
-    enabled: running,
-    refetchInterval: running ? 3000 : false,
+    refetchInterval: 3000,
   });
 }
 
 export function useToggleAuthFile() {
-  const qc = useQueryClient();
-  return useMutation({
+  return useInvalidateQueriesMutation({
     mutationFn: ({ name, disabled }: { name: string; disabled: boolean }) =>
       api().authFiles.toggle(name, disabled),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['authFiles'] }),
+    queryKeys: [['authFiles']],
   });
 }
 
 export function useDeleteAuthFile() {
-  const qc = useQueryClient();
-  return useMutation({
+  return useInvalidateQueriesMutation({
     mutationFn: (name: string) => api().authFiles.delete(name),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['authFiles'] }),
+    queryKeys: [['authFiles']],
   });
 }
 
@@ -176,21 +247,43 @@ export function useProcessLogs() {
 
 // Config — auto-fetches when proxy is running
 export function useConfig() {
-  const running = useIsProxyRunning();
-  return useQuery({
+  return useProxyQuery({
     queryKey: ['config'],
     queryFn: () => api().config.get(),
-    enabled: running,
+  });
+}
+
+export function useUpdateConfigField() {
+  return useInvalidateQueriesMutation({
+    mutationFn: ({ field, value }: { field: string; value: any }) =>
+      api().config.updateField(field, value),
+    queryKeys: [['config']],
   });
 }
 
 // Usage
 export function useUsage() {
-  const running = useIsProxyRunning();
-  return useQuery({
+  return useProxyQuery({
     queryKey: ['usage'],
     queryFn: () => api().usage.get(),
-    enabled: running,
-    refetchInterval: running ? 5000 : false,
+    refetchInterval: 5000,
+  });
+}
+
+export function useModelDefinitions(channel: string, enabled: boolean = true) {
+  return useProxyQuery({
+    queryKey: ['models', channel],
+    queryFn: () => api().models.get(channel),
+    staleTime: 60000,
+    enabled,
+  });
+}
+
+export function useModelsDevCatalog(enabled: boolean = true) {
+  return useQuery({
+    queryKey: ['modelsDev'],
+    queryFn: () => api().modelsDev.get(),
+    enabled,
+    staleTime: 600000,
   });
 }
