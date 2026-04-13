@@ -10,6 +10,7 @@ export interface SelectedModel {
   displayName: string;
   format: string;
   variants: string[];
+  fastVariants: string[];
   channel: string;
   maxOutputTokens: number;
   contextLength: number;
@@ -22,6 +23,7 @@ export interface GeneratorDef {
   formats: { value: string; label: string }[];
   channelFormatMap: Record<string, string>;
   getThinkingOptions: (format: string) => { value: string; label: string }[];
+  supportsFastMode?: (model: SelectedModel) => boolean;
   getVariantName?: (format: string, value: string) => string;
   buildOutput: (ctx: {
     selected: SelectedModel[];
@@ -35,6 +37,8 @@ interface Props {
   availableChannels: { channel: string; label: string }[];
 }
 
+type ProfileMode = 'standard' | 'fast';
+
 export function GeneratorShell({ def, availableChannels }: Props) {
   const { data: status } = useProxyStatus();
   const { data: apiKeys } = useAPIKeys();
@@ -43,6 +47,7 @@ export function GeneratorShell({ def, availableChannels }: Props) {
   const [channel, setChannel] = useState(availableChannels[0]?.channel ?? 'claude');
   const [format, setFormat] = useState(() => inferFormat(availableChannels[0]?.channel ?? 'claude', def.formats, def.channelFormatMap));
   const [selected, setSelected] = useState<SelectedModel[]>([]);
+  const [profileModes, setProfileModes] = useState<Record<string, ProfileMode>>({});
   const [apiKeyRef, setApiKeyRef] = useState(def.apiKeyPlaceholder);
   const [copied, setCopied] = useState(false);
 
@@ -96,10 +101,25 @@ export function GeneratorShell({ def, availableChannels }: Props) {
     }));
   };
 
+  const toggleFastVariant = (id: string, variant: string) => {
+    setSelected((previous) => previous.map((entry) => {
+      if (entry.id !== id) return entry;
+
+      return entry.fastVariants.includes(variant)
+        ? { ...entry, fastVariants: entry.fastVariants.filter((value) => value !== variant) }
+        : { ...entry, fastVariants: [...entry.fastVariants, variant] };
+    }));
+  };
+
+  const setProfileMode = (id: string, mode: ProfileMode) => {
+    setProfileModes((previous) => ({ ...previous, [id]: mode }));
+  };
+
   const updateFormat = (id: string, nextFormat: string) => {
     setSelected((previous) => previous.map((entry) =>
-      entry.id === id ? { ...entry, format: nextFormat, variants: [] } : entry,
+      entry.id === id ? { ...entry, format: nextFormat, variants: [], fastVariants: [] } : entry,
     ));
+    setProfileModes((previous) => ({ ...previous, [id]: 'standard' }));
   };
 
   const copyToClipboard = () => {
@@ -187,44 +207,71 @@ export function GeneratorShell({ def, availableChannels }: Props) {
         <Card>
           <CardHeader>
             <CardTitle>Selected ({selected.length})</CardTitle>
-            <CardDescription>Toggle thinking levels per model.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             {selected.map((model, index) => {
               const chips = def.getThinkingOptions(model.format);
+              const supportsFastMode = def.supportsFastMode?.(model) ?? false;
+              const activeMode = supportsFastMode ? (profileModes[model.id] ?? 'standard') : 'standard';
+              const activeVariants = activeMode === 'fast' ? model.fastVariants : model.variants;
+              const standardCount = model.variants.length;
+              const fastCount = model.fastVariants.length;
               return (
                 <div key={model.id} className={`px-3 py-2 ${index > 0 ? 'border-t border-border' : ''}`}>
                   <div className="flex items-center gap-2 mb-1.5">
                     <code className="text-[10px] font-mono text-foreground flex-1 truncate">{model.id}</code>
                     <Select value={model.format} onChange={(value) => updateFormat(model.id, value)} options={def.formats} />
+                    {supportsFastMode && (
+                      <div className="inline-flex rounded border border-border p-0.5">
+                        <button
+                          onClick={() => setProfileMode(model.id, 'standard')}
+                          className={`px-2 py-0.5 rounded text-[9px] transition-colors ${
+                            activeMode === 'standard'
+                              ? 'bg-accent/15 text-accent'
+                              : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                          }`}
+                        >
+                          Standard{standardCount > 0 ? ` ${standardCount}` : ''}
+                        </button>
+                        <button
+                          onClick={() => setProfileMode(model.id, 'fast')}
+                          className={`px-2 py-0.5 rounded text-[9px] transition-colors ${
+                            activeMode === 'fast'
+                              ? 'bg-accent/15 text-accent'
+                              : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                          }`}
+                        >
+                          Fast{fastCount > 0 ? ` ${fastCount}` : ''}
+                        </button>
+                      </div>
+                    )}
                     <button onClick={() => removeModel(model.id)} className="text-[10px] text-muted-foreground hover:text-destructive transition-colors">
                       X
                     </button>
                   </div>
                   {chips.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {chips.map((chip) => {
-                        const active = model.variants.includes(chip.value);
-                        return (
-                          <button
-                            key={chip.value}
-                            onClick={() => toggleVariant(model.id, chip.value)}
-                            className={`px-1.5 py-0.5 rounded text-[9px] border transition-colors ${
-                              active
-                                ? 'bg-accent/15 text-accent border-accent/30'
-                                : 'bg-transparent text-muted-foreground/60 border-border hover:border-muted-foreground/30 hover:text-muted-foreground'
-                            }`}
-                          >
-                            {chip.label}
-                          </button>
-                        );
-                      })}
+                    <div>
+                      <div className="flex flex-wrap gap-1">
+                        {chips.map((chip) => {
+                          const active = activeVariants.includes(chip.value);
+                          return (
+                            <button
+                              key={`${activeMode}-${chip.value}`}
+                              onClick={() => activeMode === 'fast'
+                                ? toggleFastVariant(model.id, chip.value)
+                                : toggleVariant(model.id, chip.value)}
+                              className={`px-1.5 py-0.5 rounded text-[9px] border transition-colors ${
+                                active
+                                  ? 'bg-accent/15 text-accent border-accent/30'
+                                  : 'bg-transparent text-muted-foreground/60 border-border hover:border-muted-foreground/30 hover:text-muted-foreground'
+                              }`}
+                            >
+                              {chip.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  )}
-                  {model.variants.length > 0 && (
-                    <p className="text-[9px] text-muted-foreground/40 mt-1">
-                      {model.variants.length} variant{model.variants.length !== 1 ? 's' : ''}: {model.variants.map((variant) => def.getVariantName?.(model.format, variant) ?? variant).join(', ')}
-                    </p>
                   )}
                 </div>
               );
@@ -278,6 +325,7 @@ function toSelectedModel(model: any, format: string, channel: string): SelectedM
     displayName: model.display_name || model.id,
     format,
     variants: [],
+    fastVariants: [],
     channel,
     maxOutputTokens: model.max_completion_tokens || model.outputTokenLimit || 16384,
     contextLength: model.context_length || model.inputTokenLimit || 0,

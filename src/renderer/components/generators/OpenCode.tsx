@@ -35,6 +35,23 @@ function buildThinkingOptions(fmt: string, v: string): Record<string, any> {
   return { reasoningEffort: v };
 }
 
+function buildFastModeOptions(fmt: string): Record<string, any> {
+  if (fmt === 'openai') {
+    return { serviceTier: 'priority' };
+  }
+  if (fmt === 'openai-compatible') {
+    return { service_tier: 'priority' };
+  }
+  return {};
+}
+
+function buildVariantOptions(fmt: string, v: string, fast: boolean, fastSupported: boolean): Record<string, any> {
+  return {
+    ...buildThinkingOptions(fmt, v),
+    ...(fast && fastSupported ? buildFastModeOptions(fmt) : {}),
+  };
+}
+
 const BUDGET_LEVEL_NAME: Record<string, string> = {
   '1024': 'low',
   '8192': 'medium',
@@ -72,6 +89,10 @@ const def: GeneratorDef = {
     return format === 'anthropic' ? ANTHROPIC_CHIPS : OPENAI_CHIPS;
   },
 
+  supportsFastMode(model) {
+    return model.channel === 'codex';
+  },
+
   getVariantName(format, value) {
     return variantName(format, value);
   },
@@ -89,6 +110,7 @@ const def: GeneratorDef = {
 
       const modelsObj: Record<string, any> = {};
       for (const m of fmtModels) {
+        const fastSupported = m.channel === 'codex';
         const entry: Record<string, any> = {
           name: `[clanker] ${m.displayName}`,
         };
@@ -97,12 +119,21 @@ const def: GeneratorDef = {
           entry.limit = { context: m.contextLength, output: m.maxOutputTokens };
         }
 
-        if (m.variants.length === 1) {
-          entry.options = buildThinkingOptions(fmt, m.variants[0]);
-        } else if (m.variants.length > 1) {
+        const totalVariants = m.variants.length + m.fastVariants.length;
+
+        if (totalVariants === 1) {
+          if (m.variants.length === 1) {
+            entry.options = buildVariantOptions(fmt, m.variants[0], false, fastSupported);
+          } else if (m.fastVariants.length === 1) {
+            entry.options = buildVariantOptions(fmt, m.fastVariants[0], true, fastSupported);
+          }
+        } else if (totalVariants > 1) {
           const variants: Record<string, any> = {};
           for (const v of m.variants) {
-            variants[variantName(fmt, v)] = buildThinkingOptions(fmt, v);
+            variants[variantName(fmt, v)] = buildVariantOptions(fmt, v, false, fastSupported);
+          }
+          for (const v of m.fastVariants) {
+            variants[`fast-${variantName(fmt, v)}`] = buildVariantOptions(fmt, v, true, fastSupported);
           }
           entry.variants = variants;
         }

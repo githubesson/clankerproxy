@@ -1,5 +1,5 @@
 import React from 'react';
-import { GeneratorShell, type GeneratorDef } from './GeneratorShell';
+import { GeneratorShell, type GeneratorDef, type SelectedModel } from './GeneratorShell';
 import { createGeneratorChannelFormatMap, getSuffixThinkingOptions, stripSuffixVariant } from './shared';
 
 const FORMAT_FAMILY: Record<string, 'claude' | 'openai'> = {
@@ -27,6 +27,10 @@ const def: GeneratorDef = {
     return getSuffixThinkingOptions(format, FORMAT_FAMILY);
   },
 
+  supportsFastMode(model) {
+    return model.channel === 'codex';
+  },
+
   getVariantName(_format, value) {
     return stripSuffixVariant(value);
   },
@@ -43,23 +47,40 @@ const def: GeneratorDef = {
         ...(model.maxOutputTokens ? { maxOutputTokens: model.maxOutputTokens } : {}),
       };
 
-      if (model.variants.length === 0) {
+      if (model.variants.length === 0 && model.fastVariants.length === 0) {
         entries.push({ model: model.id, displayName: `[clanker] ${model.displayName}`, ...base });
         continue;
       }
 
-      for (const suffix of model.variants) {
-        entries.push({
-          model: `${model.id}${suffix}`,
-          displayName: `[clanker] ${model.displayName} ${suffix}`,
-          ...base,
-        });
-      }
+      entries.push(...buildVariantEntries(model, base, model.variants, false));
+      entries.push(...buildVariantEntries(model, base, model.fastVariants, true));
     }
 
     return { customModels: entries };
   },
 };
+
+function buildVariantEntries(
+  model: SelectedModel,
+  base: Record<string, any>,
+  variants: string[],
+  fast: boolean,
+) {
+  return variants.map((suffix) => {
+    const parts = ['[clanker]', model.displayName];
+    if (fast) {
+      parts.push('Fast');
+    }
+    parts.push(stripSuffixVariant(suffix));
+
+    return {
+      model: `${model.id}${suffix}`,
+      displayName: parts.join(' '),
+      ...base,
+      ...(fast && model.channel === 'codex' ? { extraArgs: { service_tier: 'priority' } } : {}),
+    };
+  });
+}
 
 interface Props {
   availableChannels: { channel: string; label: string }[];
