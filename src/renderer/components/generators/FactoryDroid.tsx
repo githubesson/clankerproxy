@@ -8,6 +8,12 @@ const FORMAT_FAMILY: Record<string, 'claude' | 'openai'> = {
   'generic-chat-completion-api': 'openai',
 };
 
+function resolveSecondaryProfile(model: SelectedModel) {
+  if (model.channel === 'codex') return { id: 'fast', label: 'Fast' };
+  if (model.channel === 'claude') return { id: 'claude-1m', label: '1M' };
+  return null;
+}
+
 const def: GeneratorDef = {
   name: 'Factory Droid',
   description: '~/.factory/settings.json',
@@ -27,8 +33,8 @@ const def: GeneratorDef = {
     return getSuffixThinkingOptions(format, FORMAT_FAMILY);
   },
 
-  supportsFastMode(model) {
-    return model.channel === 'codex';
+  getSecondaryProfile(model) {
+    return resolveSecondaryProfile(model);
   },
 
   getVariantName(_format, value) {
@@ -47,13 +53,13 @@ const def: GeneratorDef = {
         ...(model.maxOutputTokens ? { maxOutputTokens: model.maxOutputTokens } : {}),
       };
 
-      if (model.variants.length === 0 && model.fastVariants.length === 0) {
+      if (model.variants.length === 0 && model.secondaryVariants.length === 0) {
         entries.push({ model: model.id, displayName: `[clanker] ${model.displayName}`, ...base });
         continue;
       }
 
       entries.push(...buildVariantEntries(model, base, model.variants, false));
-      entries.push(...buildVariantEntries(model, base, model.fastVariants, true));
+      entries.push(...buildVariantEntries(model, base, model.secondaryVariants, true));
     }
 
     return { customModels: entries };
@@ -64,12 +70,13 @@ function buildVariantEntries(
   model: SelectedModel,
   base: Record<string, any>,
   variants: string[],
-  fast: boolean,
+  secondary: boolean,
 ) {
+  const secondaryProfile = resolveSecondaryProfile(model);
   return variants.map((suffix) => {
     const parts = ['[clanker]', model.displayName];
-    if (fast) {
-      parts.push('Fast');
+    if (secondary && secondaryProfile) {
+      parts.push(secondaryProfile.label);
     }
     parts.push(stripSuffixVariant(suffix));
 
@@ -77,9 +84,23 @@ function buildVariantEntries(
       model: `${model.id}${suffix}`,
       displayName: parts.join(' '),
       ...base,
-      ...(fast && model.channel === 'codex' ? { extraArgs: { service_tier: 'priority' } } : {}),
+      ...(secondary ? buildSecondaryProfileConfig(model) : {}),
     };
   });
+}
+
+function buildSecondaryProfileConfig(model: SelectedModel): Record<string, any> {
+  if (model.channel === 'codex') {
+    return { extraArgs: { service_tier: 'priority' } };
+  }
+  if (model.channel === 'claude') {
+    return {
+      extraHeaders: {
+        'X-CPA-CLAUDE-1M': 'true',
+      },
+    };
+  }
+  return {};
 }
 
 interface Props {

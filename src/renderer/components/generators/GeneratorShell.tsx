@@ -10,10 +10,15 @@ export interface SelectedModel {
   displayName: string;
   format: string;
   variants: string[];
-  fastVariants: string[];
+  secondaryVariants: string[];
   channel: string;
   maxOutputTokens: number;
   contextLength: number;
+}
+
+export interface GeneratorSecondaryProfile {
+  id: string;
+  label: string;
 }
 
 export interface GeneratorDef {
@@ -23,7 +28,7 @@ export interface GeneratorDef {
   formats: { value: string; label: string }[];
   channelFormatMap: Record<string, string>;
   getThinkingOptions: (format: string) => { value: string; label: string }[];
-  supportsFastMode?: (model: SelectedModel) => boolean;
+  getSecondaryProfile?: (model: SelectedModel) => GeneratorSecondaryProfile | null;
   getVariantName?: (format: string, value: string) => string;
   buildOutput: (ctx: {
     selected: SelectedModel[];
@@ -37,7 +42,7 @@ interface Props {
   availableChannels: { channel: string; label: string }[];
 }
 
-type ProfileMode = 'standard' | 'fast';
+type ProfileMode = 'standard' | 'secondary';
 
 export function GeneratorShell({ def, availableChannels }: Props) {
   const { data: status } = useProxyStatus();
@@ -101,13 +106,13 @@ export function GeneratorShell({ def, availableChannels }: Props) {
     }));
   };
 
-  const toggleFastVariant = (id: string, variant: string) => {
+  const toggleSecondaryVariant = (id: string, variant: string) => {
     setSelected((previous) => previous.map((entry) => {
       if (entry.id !== id) return entry;
 
-      return entry.fastVariants.includes(variant)
-        ? { ...entry, fastVariants: entry.fastVariants.filter((value) => value !== variant) }
-        : { ...entry, fastVariants: [...entry.fastVariants, variant] };
+      return entry.secondaryVariants.includes(variant)
+        ? { ...entry, secondaryVariants: entry.secondaryVariants.filter((value) => value !== variant) }
+        : { ...entry, secondaryVariants: [...entry.secondaryVariants, variant] };
     }));
   };
 
@@ -117,7 +122,7 @@ export function GeneratorShell({ def, availableChannels }: Props) {
 
   const updateFormat = (id: string, nextFormat: string) => {
     setSelected((previous) => previous.map((entry) =>
-      entry.id === id ? { ...entry, format: nextFormat, variants: [], fastVariants: [] } : entry,
+      entry.id === id ? { ...entry, format: nextFormat, variants: [], secondaryVariants: [] } : entry,
     ));
     setProfileModes((previous) => ({ ...previous, [id]: 'standard' }));
   };
@@ -211,17 +216,18 @@ export function GeneratorShell({ def, availableChannels }: Props) {
           <CardContent className="p-0">
             {selected.map((model, index) => {
               const chips = def.getThinkingOptions(model.format);
-              const supportsFastMode = def.supportsFastMode?.(model) ?? false;
-              const activeMode = supportsFastMode ? (profileModes[model.id] ?? 'standard') : 'standard';
-              const activeVariants = activeMode === 'fast' ? model.fastVariants : model.variants;
+              const secondaryProfile = def.getSecondaryProfile?.(model) ?? null;
+              const hasSecondaryProfile = secondaryProfile !== null;
+              const activeMode = hasSecondaryProfile ? (profileModes[model.id] ?? 'standard') : 'standard';
+              const activeVariants = activeMode === 'secondary' ? model.secondaryVariants : model.variants;
               const standardCount = model.variants.length;
-              const fastCount = model.fastVariants.length;
+              const secondaryCount = model.secondaryVariants.length;
               return (
                 <div key={model.id} className={`px-3 py-2 ${index > 0 ? 'border-t border-border' : ''}`}>
                   <div className="flex items-center gap-2 mb-1.5">
                     <code className="text-[10px] font-mono text-foreground flex-1 truncate">{model.id}</code>
                     <Select value={model.format} onChange={(value) => updateFormat(model.id, value)} options={def.formats} />
-                    {supportsFastMode && (
+                    {hasSecondaryProfile && secondaryProfile && (
                       <div className="inline-flex rounded border border-border p-0.5">
                         <button
                           onClick={() => setProfileMode(model.id, 'standard')}
@@ -234,14 +240,14 @@ export function GeneratorShell({ def, availableChannels }: Props) {
                           Standard{standardCount > 0 ? ` ${standardCount}` : ''}
                         </button>
                         <button
-                          onClick={() => setProfileMode(model.id, 'fast')}
+                          onClick={() => setProfileMode(model.id, 'secondary')}
                           className={`px-2 py-0.5 rounded text-[9px] transition-colors ${
-                            activeMode === 'fast'
+                            activeMode === 'secondary'
                               ? 'bg-accent/15 text-accent'
                               : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
                           }`}
                         >
-                          Fast{fastCount > 0 ? ` ${fastCount}` : ''}
+                          {secondaryProfile.label}{secondaryCount > 0 ? ` ${secondaryCount}` : ''}
                         </button>
                       </div>
                     )}
@@ -257,8 +263,8 @@ export function GeneratorShell({ def, availableChannels }: Props) {
                           return (
                             <button
                               key={`${activeMode}-${chip.value}`}
-                              onClick={() => activeMode === 'fast'
-                                ? toggleFastVariant(model.id, chip.value)
+                              onClick={() => activeMode === 'secondary'
+                                ? toggleSecondaryVariant(model.id, chip.value)
                                 : toggleVariant(model.id, chip.value)}
                               className={`px-1.5 py-0.5 rounded text-[9px] border transition-colors ${
                                 active
@@ -325,7 +331,7 @@ function toSelectedModel(model: any, format: string, channel: string): SelectedM
     displayName: model.display_name || model.id,
     format,
     variants: [],
-    fastVariants: [],
+    secondaryVariants: [],
     channel,
     maxOutputTokens: model.max_completion_tokens || model.outputTokenLimit || 16384,
     contextLength: model.context_length || model.inputTokenLimit || 0,

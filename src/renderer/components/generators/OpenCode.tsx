@@ -45,10 +45,38 @@ function buildFastModeOptions(fmt: string): Record<string, any> {
   return {};
 }
 
-function buildVariantOptions(fmt: string, v: string, fast: boolean, fastSupported: boolean): Record<string, any> {
+function buildClaude1MOptions(): Record<string, any> {
+  return {
+    headers: {
+      'X-CPA-CLAUDE-1M': 'true',
+    },
+  };
+}
+
+function buildSecondaryProfileOptions(model: SelectedModel, fmt: string): Record<string, any> {
+  if (model.channel === 'codex') {
+    return buildFastModeOptions(fmt);
+  }
+  if (model.channel === 'claude') {
+    return buildClaude1MOptions();
+  }
+  return {};
+}
+
+function secondaryVariantName(model: SelectedModel, fmt: string, v: string): string {
+  if (model.channel === 'codex') {
+    return `fast-${variantName(fmt, v)}`;
+  }
+  if (model.channel === 'claude') {
+    return `1m-${variantName(fmt, v)}`;
+  }
+  return variantName(fmt, v);
+}
+
+function buildVariantOptions(model: SelectedModel, fmt: string, v: string, secondary: boolean): Record<string, any> {
   return {
     ...buildThinkingOptions(fmt, v),
-    ...(fast && fastSupported ? buildFastModeOptions(fmt) : {}),
+    ...(secondary ? buildSecondaryProfileOptions(model, fmt) : {}),
   };
 }
 
@@ -89,8 +117,10 @@ const def: GeneratorDef = {
     return format === 'anthropic' ? ANTHROPIC_CHIPS : OPENAI_CHIPS;
   },
 
-  supportsFastMode(model) {
-    return model.channel === 'codex';
+  getSecondaryProfile(model) {
+    if (model.channel === 'codex') return { id: 'fast', label: 'Fast' };
+    if (model.channel === 'claude') return { id: 'claude-1m', label: '1M' };
+    return null;
   },
 
   getVariantName(format, value) {
@@ -110,7 +140,6 @@ const def: GeneratorDef = {
 
       const modelsObj: Record<string, any> = {};
       for (const m of fmtModels) {
-        const fastSupported = m.channel === 'codex';
         const entry: Record<string, any> = {
           name: `[clanker] ${m.displayName}`,
         };
@@ -119,21 +148,21 @@ const def: GeneratorDef = {
           entry.limit = { context: m.contextLength, output: m.maxOutputTokens };
         }
 
-        const totalVariants = m.variants.length + m.fastVariants.length;
+        const totalVariants = m.variants.length + m.secondaryVariants.length;
 
         if (totalVariants === 1) {
           if (m.variants.length === 1) {
-            entry.options = buildVariantOptions(fmt, m.variants[0], false, fastSupported);
-          } else if (m.fastVariants.length === 1) {
-            entry.options = buildVariantOptions(fmt, m.fastVariants[0], true, fastSupported);
+            entry.options = buildVariantOptions(m, fmt, m.variants[0], false);
+          } else if (m.secondaryVariants.length === 1) {
+            entry.options = buildVariantOptions(m, fmt, m.secondaryVariants[0], true);
           }
         } else if (totalVariants > 1) {
           const variants: Record<string, any> = {};
           for (const v of m.variants) {
-            variants[variantName(fmt, v)] = buildVariantOptions(fmt, v, false, fastSupported);
+            variants[variantName(fmt, v)] = buildVariantOptions(m, fmt, v, false);
           }
-          for (const v of m.fastVariants) {
-            variants[`fast-${variantName(fmt, v)}`] = buildVariantOptions(fmt, v, true, fastSupported);
+          for (const v of m.secondaryVariants) {
+            variants[secondaryVariantName(m, fmt, v)] = buildVariantOptions(m, fmt, v, true);
           }
           entry.variants = variants;
         }
