@@ -245,6 +245,21 @@ export function useProcessLogs() {
   return logs;
 }
 
+export function useAppLogs() {
+  const [logs, setLogs] = useState<string[]>([]);
+
+  useEffect(() => {
+    api().appLogs.get().then(setLogs);
+
+    const unsub = api().appLogs.onLog((newLines: string[]) => {
+      setLogs((prev) => [...prev, ...newLines].slice(-5000));
+    });
+    return unsub;
+  }, []);
+
+  return logs;
+}
+
 // Config — auto-fetches when proxy is running
 export function useConfig() {
   return useProxyQuery({

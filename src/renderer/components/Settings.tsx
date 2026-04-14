@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useConfig, useIsProxyRunning, useUpdateConfigField } from '../hooks/useIPC';
 import { Card, CardContent, Input, Switch, Select, ProxyRequired, Separator } from './ui';
+import { usePref, useSetPref } from '../hooks/usePrefs';
 
 export function Settings() {
   const isRunning = useIsProxyRunning();
@@ -24,6 +25,8 @@ export function Settings() {
           <ToggleField label="Force model prefix" field="force-model-prefix" value={config['force-model-prefix'] ?? false} />
         </CardContent>
       </Card>
+
+      <AutoUpdateCard />
 
       <Card>
         <CardContent className="p-0">
@@ -160,6 +163,48 @@ function SettingRow({
       <span className="text-[11px] text-foreground">{label}</span>
       {children}
     </div>
+  );
+}
+
+function AutoUpdateCard() {
+  const { data: enabled } = usePref<boolean>('autoUpdateBinary', false);
+  const { data: interval } = usePref<number>('autoUpdateIntervalMinutes', 30);
+  const setEnabled = useSetPref('autoUpdateBinary');
+  const setInterval_ = useSetPref('autoUpdateIntervalMinutes');
+  const [draft, setDraft] = useState(String(interval ?? 30));
+
+  useEffect(() => {
+    setDraft(String(interval ?? 30));
+  }, [interval]);
+
+  const commitInterval = () => {
+    const parsed = parseInt(draft, 10);
+    if (Number.isNaN(parsed) || parsed < 1) return;
+    if (parsed !== interval) setInterval_.mutate(parsed);
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-0">
+        <SettingRow label="Auto-update binary">
+          <Switch checked={enabled ?? false} onCheckedChange={(v) => setEnabled.mutate(v)} />
+        </SettingRow>
+        {enabled && (
+          <>
+            <Separator />
+            <SettingRow label="Check interval (min)">
+              <Input
+                type="number"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={commitInterval}
+                className="w-16 text-right"
+              />
+            </SettingRow>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

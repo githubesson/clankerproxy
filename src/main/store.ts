@@ -7,6 +7,8 @@ interface StoreSchema {
   autoStartApp: boolean;
   windowBounds: { x: number; y: number; width: number; height: number } | null;
   zoom: number;
+  autoUpdateBinary: boolean;
+  autoUpdateIntervalMinutes: number;
 }
 
 export const store = new Store<StoreSchema>({
@@ -17,5 +19,7 @@ export const store = new Store<StoreSchema>({
     autoStartApp: false,
     windowBounds: null,
     zoom: 1.0,
+    autoUpdateBinary: false,
+    autoUpdateIntervalMinutes: 30,
   },
 });

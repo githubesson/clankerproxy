@@ -1,19 +1,14 @@
 import { app, BrowserWindow } from 'electron';
 import { join } from 'path';
-import { appendFileSync } from 'fs';
 import { ProxyManager } from './proxy-manager';
 import { createTray } from './tray';
 import { registerIPCHandlers } from './ipc-handlers';
 import { isBinaryInstalled, downloadBinary } from './binary-manager';
 import { store } from './store';
+import { startAutoUpdater, restartAutoUpdater } from './auto-updater';
+import { appLogger } from './app-logger';
 
-// Crash logging
-const logFile = join(app.getPath('userData'), 'clankerproxy.log');
-function log(msg: string) {
-  const line = `[${new Date().toISOString()}] ${msg}\n`;
-  try { appendFileSync(logFile, line); } catch {}
-  console.log(msg);
-}
+function log(msg: string) { appLogger.log(msg); }
 process.on('uncaughtException', (err) => { log(`UNCAUGHT: ${err.stack ?? err}`); });
 process.on('unhandledRejection', (err) => { log(`UNHANDLED: ${err}`); });
 
@@ -107,6 +102,10 @@ proxyManager.on('log', (lines: string[]) => {
   settingsWindow?.webContents.send('proxy:log', lines);
 });
 
+appLogger.on('log', (lines: string[]) => {
+  settingsWindow?.webContents.send('app:log', lines);
+});
+
 app.on('ready', async () => {
   log(`App ready. userData: ${app.getPath('userData')}`);
   log(`__dirname: ${__dirname}`);
@@ -131,6 +130,11 @@ app.on('ready', async () => {
   if (store.get('autoStartProxy')) {
     proxyManager.start().catch(console.error);
   }
+
+  // Start binary auto-updater
+  startAutoUpdater();
+  store.onDidChange('autoUpdateBinary', () => restartAutoUpdater());
+  store.onDidChange('autoUpdateIntervalMinutes', () => restartAutoUpdater());
 });
 
 // Keep the app running when all windows are closed (tray app behavior)

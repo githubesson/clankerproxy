@@ -63,4 +63,8 @@ export const IPC_CHANNELS = {
     get: 'zoom:get',
     set: 'zoom:set',
   },
+  appLogs: {
+    get: 'appLogs:get',
+    onLog: 'app:log',
+  },
 } as const;

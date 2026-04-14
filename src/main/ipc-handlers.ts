@@ -5,6 +5,7 @@ import { downloadBinary, getLatestRelease, checkForUpdate, isBinaryInstalled, ty
 import { ProxyManager } from './proxy-manager';
 import { store } from './store';
 import { IPC_CHANNELS } from '../shared/ipc';
+import { appLogger } from './app-logger';
 
 export function registerIPCHandlers(proxyManager: ProxyManager) {
   const requireClient = () => {
@@ -99,6 +100,8 @@ export function registerIPCHandlers(proxyManager: ProxyManager) {
     const resolved = authDir.replace(/^~/, os.homedir());
     shell.openPath(resolved);
   });
+
+  handle(IPC_CHANNELS.appLogs.get, () => appLogger.getLogs());
 
   handle(IPC_CHANNELS.prefs.get, (key: string) => store.get(key as any));
   handle(IPC_CHANNELS.prefs.set, (key: string, value: any) => store.set(key as any, value));

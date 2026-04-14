@@ -70,6 +70,10 @@ const api = {
   modelsDev: {
     get: () => invoke(IPC_CHANNELS.modelsDev.get)() as Promise<Record<string, any>>,
   },
+  appLogs: {
+    get: () => invoke(IPC_CHANNELS.appLogs.get)() as Promise<string[]>,
+    onLog: (callback: (lines: string[]) => void) => subscribe(IPC_CHANNELS.appLogs.onLog, callback),
+  },
   prefs: {
     get: (key: string) => invoke(IPC_CHANNELS.prefs.get)(key),
     set: (key: string, value: any) => invoke(IPC_CHANNELS.prefs.set)(key, value),
