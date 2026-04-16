@@ -1,5 +1,5 @@
 import { app } from 'electron';
-import { existsSync, mkdirSync, chmodSync } from 'fs';
+import { existsSync, mkdirSync, chmodSync, renameSync, unlinkSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { store } from './store';
 import https from 'https';
@@ -20,6 +20,33 @@ export function getBinaryPath(): string {
 
 export function isBinaryInstalled(): boolean {
   return existsSync(getBinaryPath());
+}
+
+// On Windows, a running .exe cannot be deleted or overwritten, but it CAN be
+// renamed out of the way. We park the locked file under a .old-* name so the
+// updater can extract a fresh copy on top of the original path without stopping
+// the proxy. The stale files are swept on the next download / app start.
+function sweepStaleBinaries(binDir: string): void {
+  try {
+    for (const entry of readdirSync(binDir)) {
+      if (!entry.startsWith(`${BINARY_NAME}.old-`)) continue;
+      try {
+        unlinkSync(join(binDir, entry));
+      } catch {
+        // still locked — a previous proxy instance may be holding it; leave it
+      }
+    }
+  } catch {
+    // bin dir missing is fine
+  }
+}
+
+function moveLockedBinaryAside(binDir: string): string | null {
+  const current = join(binDir, BINARY_NAME);
+  if (!existsSync(current)) return null;
+  const parked = join(binDir, `${BINARY_NAME}.old-${Date.now()}`);
+  renameSync(current, parked);
+  return parked;
 }
 
 function getPlatformArch(): { os: string; arch: string } {
@@ -114,17 +141,31 @@ export async function downloadBinary(release?: ReleaseInfo): Promise<string> {
   }
 
   const binDir = getBinDir();
+  sweepStaleBinaries(binDir);
+
   const { data } = await fetch(release.downloadUrl);
 
+  // Windows locks a running .exe against delete/overwrite but allows rename,
+  // so park the old binary before extracting. No-op on other platforms since
+  // they permit overwrite-while-running.
   if (process.platform === 'win32') {
-    await extractZip(data, binDir);
+    const parked = moveLockedBinaryAside(binDir);
+    try {
+      await extractZip(data, binDir);
+    } catch (err) {
+      // Restore the parked binary so the proxy still has something to spawn next time.
+      if (parked && !existsSync(join(binDir, BINARY_NAME))) {
+        try { renameSync(parked, join(binDir, BINARY_NAME)); } catch { /* leave parked */ }
+      }
+      throw err;
+    }
   } else {
     await extractTarGz(data, binDir);
   }
 
   // The archive extracts files into the bin dir. Find and move the binary if nested.
   const binaryPath = getBinaryPath();
-  const { readdirSync, renameSync, statSync } = await import('fs');
+  const { statSync } = await import('fs');
 
   // goreleaser archives have the binary at the top level of the archive
   // but sometimes inside a subdirectory. Search for it.
