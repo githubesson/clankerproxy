@@ -7,7 +7,6 @@ import { OpenCodeGenerator } from './generators/OpenCode';
 import { CrushGenerator } from './generators/Crush';
 import { buildAvailableChannels, getConfiguredProviderChannels } from '../lib/channels';
 
-// Registered generators — add new ones here
 const GENERATORS = [
   { id: 'factory-droid', label: 'Factory Droid' },
   { id: 'opencode', label: 'OpenCode' },
@@ -21,7 +20,6 @@ export function ConfigGenerator() {
   const { data: authFiles } = useAuthFiles();
   const [generator, setGenerator] = useState<GeneratorId>('factory-droid');
 
-  // Detect which provider keys are configured via management API
   const { data: configuredProviders } = useQuery({
     queryKey: ['configuredProviders'],
     queryFn: () => getConfiguredProviderChannels(window.clankerProxy),
@@ -36,10 +34,12 @@ export function ConfigGenerator() {
   return (
     <div className="max-w-xl space-y-3">
       <div className="flex items-center gap-2">
-        <p className="text-[10px] text-muted-foreground flex-1">
+        <p className="flex-1 text-[0.625rem] text-muted-foreground text-pretty">
           Generate config for external tools using your proxy.
         </p>
         <Select
+          name="generator"
+          aria-label="Target generator"
           value={generator}
           onChange={(v) => setGenerator(v as GeneratorId)}
           options={GENERATORS.map((g) => ({ value: g.id, label: g.label }))}
@@ -47,9 +47,9 @@ export function ConfigGenerator() {
       </div>
 
       {availableChannels.length === 0 && (
-        <div className="rounded-md border border-border bg-card px-3 py-6 text-center">
-          <p className="text-[10px] text-muted-foreground">No providers configured yet.</p>
-          <p className="text-[9px] text-muted-foreground/50 mt-1">Add API keys or use OAuth to set up providers first.</p>
+        <div className="rounded-md ring-1 ring-white/5 bg-card px-3 py-6 text-center">
+          <p className="text-[0.625rem] text-muted-foreground text-pretty">No providers configured yet.</p>
+          <p className="mt-1 text-[0.5625rem] text-muted-foreground/50 text-pretty">Add API keys or use OAuth to set up providers first.</p>
         </div>
       )}
 

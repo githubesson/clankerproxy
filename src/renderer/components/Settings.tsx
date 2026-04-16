@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { useConfig, useIsProxyRunning, useUpdateConfigField } from '../hooks/useIPC';
-import { Card, CardContent, Input, Switch, Select, ProxyRequired, Separator } from './ui';
+import { Card, CardContent, Input, Switch, Select, ProxyRequired, Separator, Label } from './ui';
 import { usePref, useSetPref } from '../hooks/usePrefs';
 
 export function Settings() {
@@ -12,7 +12,7 @@ export function Settings() {
 
   return (
     <div className="max-w-md space-y-3">
-      <p className="text-[10px] text-muted-foreground">Changes apply instantly via hot-reload.</p>
+      <p className="text-[0.625rem] text-muted-foreground text-pretty">Changes apply instantly via hot-reload.</p>
 
       <Card>
         <CardContent className="p-0">
@@ -67,10 +67,11 @@ export function Settings() {
 
 function ToggleField({ label, field, value }: { label: string; field: string; value: boolean }) {
   const updateField = useConfigFieldMutation<boolean>(field);
+  const id = useId();
 
   return (
-    <SettingRow label={label}>
-      <Switch checked={value} onCheckedChange={(nextValue) => updateField.mutate(nextValue)} disabled={updateField.isPending} />
+    <SettingRow label={label} id={id}>
+      <Switch id={id} checked={value} onCheckedChange={(nextValue) => updateField.mutate(nextValue)} disabled={updateField.isPending} aria-label={label} />
     </SettingRow>
   );
 }
@@ -87,10 +88,11 @@ function SelectField({
   options: { value: string; label: string }[];
 }) {
   const updateField = useConfigFieldMutation<string>(field);
+  const id = useId();
 
   return (
-    <SettingRow label={label}>
-      <Select value={value} onChange={(nextValue) => updateField.mutate(nextValue)} options={options} />
+    <SettingRow label={label} id={id}>
+      <Select id={id} name={field} value={value} onChange={(nextValue) => updateField.mutate(nextValue)} options={options} aria-label={label} />
     </SettingRow>
   );
 }
@@ -112,6 +114,7 @@ function BlurInputField<TValue extends string | number>({
 }) {
   const updateField = useConfigFieldMutation<TValue>(field);
   const [draft, setDraft] = useState(String(value));
+  const id = useId();
 
   useEffect(() => {
     setDraft(String(value));
@@ -127,8 +130,11 @@ function BlurInputField<TValue extends string | number>({
   };
 
   return (
-    <SettingRow label={label} stacked={stacked}>
+    <SettingRow label={label} stacked={stacked} id={id}>
       <Input
+        id={id}
+        name={field}
+        aria-label={label}
         type={inputProps?.type}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
@@ -144,15 +150,17 @@ function SettingRow({
   label,
   children,
   stacked = false,
+  id,
 }: {
   label: string;
   children: React.ReactNode;
   stacked?: boolean;
+  id?: string;
 }) {
   if (stacked) {
     return (
       <div className="px-3 py-2 space-y-1">
-        <span className="text-[11px] text-foreground">{label}</span>
+        <Label htmlFor={id} className="text-[0.6875rem] text-foreground">{label}</Label>
         {children}
       </div>
     );
@@ -160,7 +168,7 @@ function SettingRow({
 
   return (
     <div className="flex items-center justify-between px-3 py-2">
-      <span className="text-[11px] text-foreground">{label}</span>
+      <Label htmlFor={id} className="text-[0.6875rem] text-foreground">{label}</Label>
       {children}
     </div>
   );
@@ -172,6 +180,8 @@ function AutoUpdateCard() {
   const setEnabled = useSetPref('autoUpdateBinary');
   const setInterval_ = useSetPref('autoUpdateIntervalMinutes');
   const [draft, setDraft] = useState(String(interval ?? 30));
+  const toggleId = useId();
+  const intervalId = useId();
 
   useEffect(() => {
     setDraft(String(interval ?? 30));
@@ -186,14 +196,17 @@ function AutoUpdateCard() {
   return (
     <Card>
       <CardContent className="p-0">
-        <SettingRow label="Auto-update binary">
-          <Switch checked={enabled ?? false} onCheckedChange={(v) => setEnabled.mutate(v)} />
+        <SettingRow label="Auto-update binary" id={toggleId}>
+          <Switch id={toggleId} checked={enabled ?? false} onCheckedChange={(v) => setEnabled.mutate(v)} aria-label="Auto-update binary" />
         </SettingRow>
         {enabled && (
           <>
             <Separator />
-            <SettingRow label="Check interval (min)">
+            <SettingRow label="Check interval (min)" id={intervalId}>
               <Input
+                id={intervalId}
+                name="auto-update-interval"
+                aria-label="Check interval in minutes"
                 type="number"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}

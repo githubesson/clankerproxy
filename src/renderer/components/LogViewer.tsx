@@ -29,30 +29,52 @@ export function LogViewer() {
   const lines = filter ? activeLogs.filter((l) => l.toLowerCase().includes(filter.toLowerCase())) : activeLogs;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4.5rem)] -mx-4 -mb-3">
-      <div className="flex items-center gap-1.5 px-3 py-1 border-b border-border shrink-0">
-        <div className="flex rounded-md border border-border overflow-hidden mr-1">
+    <div className="flex flex-col h-[calc(100dvh-4.5rem)] -mx-4 -mb-3">
+      <div className="flex items-center gap-1.5 px-3 py-1 border-b border-white/5 shrink-0">
+        <div
+          role="tablist"
+          aria-label="Log source"
+          className="inline-flex rounded ring-1 ring-inset ring-white/10 bg-white/[0.02] p-0.5"
+        >
           <TabButton active={tab === 'proxy'} onClick={() => setTab('proxy')}>Proxy</TabButton>
           <TabButton active={tab === 'app'} onClick={() => setTab('app')}>ClankerProxy</TabButton>
         </div>
-        <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter..." className="max-w-[200px]" />
-        <Button variant={autoScroll ? 'default' : 'outline'} size="sm" onClick={() => setAutoScroll(!autoScroll)}>Tail</Button>
+        <Input
+          name="log-filter"
+          aria-label="Filter logs"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Filter…"
+          className="max-w-[200px]"
+        />
+        <Button variant={autoScroll ? 'subtle' : 'outline'} size="sm" onClick={() => setAutoScroll(!autoScroll)} aria-pressed={autoScroll}>
+          Tail
+        </Button>
         <div className="flex-1" />
-        <span className="text-[9px] text-muted-foreground/40 tabular-nums">{lines.length}</span>
+        <span className="text-[0.5625rem] text-muted-foreground/50 tabular-nums">{lines.length}</span>
       </div>
       <div ref={ref} onScroll={onScroll} className="flex-1 overflow-y-auto px-3 py-1 font-mono">
         {lines.length === 0 ? (
           <div className="flex items-center justify-center h-full">
-            <p className="text-[10px] text-muted-foreground/30">
-              {tab === 'proxy' ? (isRunning ? 'Waiting...' : 'Proxy offline') : 'No logs yet'}
+            <p className="text-[0.625rem] text-muted-foreground/40 text-pretty">
+              {tab === 'proxy' ? (isRunning ? 'Waiting…' : 'Proxy offline') : 'No logs yet'}
             </p>
           </div>
-        ) : lines.map((l, i) => (
-          <div key={i} className={`text-[10px] leading-4 whitespace-pre-wrap break-all select-text ${
-            l.toLowerCase().includes('error') || l.toLowerCase().includes('fatal') ? 'text-destructive' :
-            l.toLowerCase().includes('warn') ? 'text-warning' : 'text-muted-foreground/70'
-          }`}>{l}</div>
-        ))}
+        ) : (
+          <ol role="list" className="list-none">
+            {lines.map((l, i) => (
+              <li
+                key={i}
+                className={`text-[0.625rem] leading-4 whitespace-pre-wrap break-all select-text ${
+                  l.toLowerCase().includes('error') || l.toLowerCase().includes('fatal') ? 'text-destructive' :
+                  l.toLowerCase().includes('warn') ? 'text-warning' : 'text-muted-foreground/75'
+                }`}
+              >
+                {l}
+              </li>
+            ))}
+          </ol>
+        )}
       </div>
     </div>
   );
@@ -61,9 +83,14 @@ export function LogViewer() {
 function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
+      type="button"
+      role="tab"
+      aria-selected={active}
       onClick={onClick}
-      className={`px-2 py-0.5 text-[10px] transition-colors ${
-        active ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground'
+      className={`px-2 py-0.5 rounded text-[0.625rem] ${
+        active
+          ? 'bg-white/[0.08] text-foreground'
+          : 'text-muted-foreground hover:text-foreground'
       }`}
     >
       {children}

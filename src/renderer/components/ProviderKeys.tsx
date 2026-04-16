@@ -17,7 +17,11 @@ import {
   upsertProviderEntryModels,
 } from '../lib/providerKeys';
 import { PROVIDER_KEY_DEFINITIONS, PROVIDER_KEY_MOVE_TARGETS } from '../../shared/provider-registry';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Input, Badge, Select, ProxyRequired } from './ui';
+import {
+  Card, CardContent, CardHeader, CardTitle, CardDescription,
+  Button, Input, Badge, Select, ProxyRequired,
+} from './ui';
+import { ChevronDownIcon, ChevronRightIcon, ChevronLeftIcon, XMarkIcon, PlusIcon, TrashIcon } from './icons';
 
 const PROVIDER_LOOKUP = new Map(PROVIDER_KEY_DEFINITIONS.map((provider) => [provider.id, provider]));
 
@@ -35,12 +39,14 @@ export function ProviderKeys() {
   return (
     <div className="max-w-lg space-y-2">
       <div className="flex items-center gap-2">
-        <p className="text-[10px] text-muted-foreground flex-1">Upstream LLM provider keys.</p>
-        <Button variant={showPresets ? 'default' : 'outline'} size="sm" onClick={() => setShowPresets((value) => !value)}>
+        <p className="flex-1 text-[0.625rem] text-muted-foreground text-pretty">Upstream LLM provider keys.</p>
+        <Button variant={showPresets ? 'default' : 'outline'} onClick={() => setShowPresets((value) => !value)}>
           Presets
         </Button>
         {!showPresets && (
           <Select
+            name="active-provider"
+            aria-label="Active provider"
             value={active}
             onChange={(value) => setActive(value as ProviderId)}
             options={PROVIDER_KEY_DEFINITIONS.map(({ id, label }) => ({ value: id, label }))}
@@ -163,7 +169,7 @@ function PresetBrowser() {
   const selectAllModels = () => {
     if (!selectedProvider) return;
     const allModels = Object.keys(selectedProvider.models);
-    setSelectedModels((previous) => previous.size === allModels.length ? new Set() : new Set(allModels));
+    setSelectedModels((previous) => (previous.size === allModels.length ? new Set() : new Set(allModels)));
   };
 
   if (selectedProvider) {
@@ -173,53 +179,68 @@ function PresetBrowser() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <button onClick={() => { setSelectedProvider(null); setSelectedModels(new Set()); }} className="text-[10px] text-muted-foreground hover:text-foreground">
-              Back
-            </button>
-            <div className="flex-1">
+            <Button
+              variant="ghost"
+              size="iconSm"
+              onClick={() => { setSelectedProvider(null); setSelectedModels(new Set()); }}
+              aria-label="Back to provider list"
+              title="Back"
+            >
+              <ChevronLeftIcon className="size-3" />
+            </Button>
+            <div className="flex-1 min-w-0">
               <CardTitle>{selectedProvider.name}</CardTitle>
-              <CardDescription>{selectedProvider.api || selectedProvider.id} -- {models.length} models</CardDescription>
+              <CardDescription>{selectedProvider.api || selectedProvider.id} · {models.length} models</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
-          <Input value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={`API key (${selectedProvider.env?.[0] || 'key'})...`} />
+          <Input
+            name="preset-api-key"
+            aria-label={`API key for ${selectedProvider.name}`}
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder={`API key (${selectedProvider.env?.[0] || 'key'})…`}
+          />
 
           <div className="flex items-center gap-2">
-            <span className="text-[9px] text-muted-foreground flex-1">{selectedModels.size} selected</span>
+            <span className="flex-1 text-[0.5625rem] text-muted-foreground tabular-nums">{selectedModels.size} selected</span>
             <Button variant="ghost" size="sm" onClick={selectAllModels}>
               {selectedModels.size === models.length ? 'Deselect All' : 'Select All'}
             </Button>
           </div>
 
-          <div className="max-h-48 overflow-y-auto space-y-px">
+          <ul role="list" className="max-h-48 overflow-y-auto space-y-px">
             {models.map((model: any) => {
               const active = selectedModels.has(model.id);
               return (
-                <button
-                  key={model.id}
-                  onClick={() => toggleModel(model.id)}
-                  className={`w-full text-left px-2 py-1 rounded text-[10px] transition-colors flex items-center gap-2 ${
-                    active ? 'bg-accent/10 text-accent' : 'hover:bg-muted/40 text-muted-foreground'
-                  }`}
-                >
-                  <span className="font-mono flex-1 truncate">{model.id}</span>
-                  <div className="flex gap-1 shrink-0">
-                    {model.reasoning && <Badge variant="success">reason</Badge>}
-                    {model.tool_call && <Badge variant="outline">tools</Badge>}
-                    {model.limit?.context && <Badge variant="outline">{Math.round(model.limit.context / 1000)}K</Badge>}
-                  </div>
-                </button>
+                <li key={model.id}>
+                  <button
+                    type="button"
+                    onClick={() => toggleModel(model.id)}
+                    aria-pressed={active}
+                    className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left text-[0.625rem] ${
+                      active ? 'bg-accent/10 text-accent' : 'text-muted-foreground hover:bg-white/[0.04]'
+                    }`}
+                  >
+                    <span className="flex-1 min-w-0 truncate font-mono">{model.id}</span>
+                    <span className="flex shrink-0 gap-1">
+                      {model.reasoning && <Badge variant="success">reason</Badge>}
+                      {model.tool_call && <Badge variant="outline">tools</Badge>}
+                      {model.limit?.context && <Badge variant="outline">{Math.round(model.limit.context / 1000)}K</Badge>}
+                    </span>
+                  </button>
+                </li>
               );
             })}
-          </div>
+          </ul>
 
           <Button
             onClick={() => addPreset.mutate()}
             disabled={!apiKey.trim() || selectedModels.size === 0 || addPreset.isPending}
             className="w-full"
           >
-            {done ? 'Added!' : addPreset.isPending ? 'Adding...' : `Add ${selectedModels.size} model${selectedModels.size !== 1 ? 's' : ''}`}
+            {done ? 'Added!' : addPreset.isPending ? 'Adding…' : `Add ${selectedModels.size} model${selectedModels.size !== 1 ? 's' : ''}`}
           </Button>
         </CardContent>
       </Card>
@@ -235,19 +256,23 @@ function PresetBrowser() {
       <CardContent className="space-y-2">
         <div className="flex gap-1.5">
           <Input
+            name="preset-search"
+            aria-label="Search providers and models"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search ${searchMode === 'both' ? 'providers & models' : searchMode === 'provider' ? 'providers' : 'models'}...`}
+            placeholder={`Search ${searchMode === 'both' ? 'providers & models' : searchMode === 'provider' ? 'providers' : 'models'}…`}
           />
-          <div className="flex shrink-0">
+          <div className="inline-flex shrink-0 rounded ring-1 ring-inset ring-white/10 bg-white/[0.02] p-0.5" role="group" aria-label="Search scope">
             {(['both', 'provider', 'model'] as const).map((mode) => (
               <button
+                type="button"
                 key={mode}
                 onClick={() => setSearchMode(mode)}
-                className={`px-1.5 py-0.5 text-[9px] border transition-colors first:rounded-l last:rounded-r ${
+                aria-pressed={searchMode === mode}
+                className={`px-1.5 py-0.5 rounded text-[0.5625rem] ${
                   searchMode === mode
-                    ? 'bg-accent/15 text-accent border-accent/30'
-                    : 'bg-transparent text-muted-foreground/50 border-border hover:text-muted-foreground'
+                    ? 'bg-white/[0.08] text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {mode === 'both' ? 'All' : mode === 'provider' ? 'Prov' : 'Model'}
@@ -256,42 +281,46 @@ function PresetBrowser() {
           </div>
         </div>
 
-        <div className="max-h-64 overflow-y-auto space-y-px">
-          {isLoading && <p className="text-[10px] text-muted-foreground py-4 text-center">Loading catalog...</p>}
-          {!isLoading && providers.length === 0 && <p className="text-[10px] text-muted-foreground py-4 text-center">No results.</p>}
+        <ul role="list" className="max-h-64 overflow-y-auto space-y-px">
+          {isLoading && <li className="py-4 text-center text-[0.625rem] text-muted-foreground">Loading catalog…</li>}
+          {!isLoading && providers.length === 0 && (
+            <li className="py-4 text-center text-[0.625rem] text-muted-foreground">No results.</li>
+          )}
           {providers.map((provider: any) => {
             const modelCount = Object.keys(provider.models).length;
             const reasoningCount = Object.values(provider.models).filter((model: any) => model.reasoning).length;
 
             return (
-              <button
-                key={provider.id}
-                onClick={() => { setSelectedProvider(provider); setSelectedModels(new Set(Object.keys(provider.models))); }}
-                className="w-full text-left px-2 py-1.5 rounded hover:bg-muted/40 transition-colors flex items-center gap-2"
-              >
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] text-foreground font-medium truncate">{provider.name}</p>
-                  <p className="text-[9px] text-muted-foreground/60 truncate">{provider.api || provider.id}</p>
-                </div>
-                <div className="flex gap-1 shrink-0">
-                  <Badge variant="outline">{modelCount} model{modelCount !== 1 ? 's' : ''}</Badge>
-                  {reasoningCount > 0 && <Badge variant="success">{reasoningCount} reason</Badge>}
-                </div>
-              </button>
+              <li key={provider.id}>
+                <button
+                  type="button"
+                  onClick={() => { setSelectedProvider(provider); setSelectedModels(new Set(Object.keys(provider.models))); }}
+                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-white/[0.04]"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[0.625rem] text-foreground font-medium truncate">{provider.name}</p>
+                    <p className="text-[0.5625rem] text-muted-foreground/60 truncate">{provider.api || provider.id}</p>
+                  </div>
+                  <span className="flex shrink-0 gap-1">
+                    <Badge variant="outline">{modelCount} model{modelCount !== 1 ? 's' : ''}</Badge>
+                    {reasoningCount > 0 && <Badge variant="success">{reasoningCount} reason</Badge>}
+                  </span>
+                </button>
+              </li>
             );
           })}
-        </div>
+        </ul>
       </CardContent>
     </Card>
   );
 }
 
 function Section({ provider, keyField }: { provider: ProviderId; keyField: 'api-key' | 'name' }) {
-  const queryClient = useQueryClient();
   const { data: keys, isLoading } = useProviderKeys(provider);
   const deleteEntry = useDeleteProviderKey(provider);
   const addEntry = usePatchProviderKeys(provider);
   const putEntries = usePutProviderKeys(provider);
+  const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
   const [value, setValue] = useState('');
@@ -361,103 +390,127 @@ function Section({ provider, keyField }: { provider: ProviderId; keyField: 'api-
     <div className="space-y-2">
       <Card>
         <CardContent className="p-0">
-          {isLoading && <div className="px-3 py-2 text-[10px] text-muted-foreground">Loading...</div>}
-          {!isLoading && keys?.length === 0 && !adding && <div className="px-3 py-6 text-center text-[10px] text-muted-foreground">No keys for this provider.</div>}
-          {keys?.map((entry: any, index: number) => {
-            const title = getProviderEntryTitle(entry);
-            const secret = getProviderEntrySecret(entry);
-            const isOpen = expanded === index;
+          {isLoading && <div className="px-3 py-2 text-[0.625rem] text-muted-foreground">Loading…</div>}
+          {!isLoading && keys?.length === 0 && !adding && (
+            <div className="px-3 py-6 text-center text-[0.625rem] text-muted-foreground">No keys for this provider.</div>
+          )}
+          <ul role="list">
+            {keys?.map((entry: any, index: number) => {
+              const title = getProviderEntryTitle(entry);
+              const secret = getProviderEntrySecret(entry);
+              const isOpen = expanded === index;
 
-            return (
-              <div key={index} className={index > 0 ? 'border-t border-border' : ''}>
-                <div
-                  className="flex items-center gap-2 px-3 py-1.5 group hover:bg-muted/30 cursor-default"
-                  onClick={() => setExpanded(isOpen ? null : index)}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-foreground truncate">{title || '--'}</span>
-                      {secret && <code className="text-[9px] text-muted-foreground/40 font-mono">{maskSecret(secret)}</code>}
-                      <Badge variant="outline">{providerBadge}</Badge>
-                    </div>
-                    {entry['base-url'] && <p className="text-[9px] text-muted-foreground/50 font-mono truncate">{entry['base-url']}</p>}
-                    {entry.models?.length > 0 && (
-                      <p className="text-[9px] text-muted-foreground/40">{entry.models.length} model{entry.models.length !== 1 ? 's' : ''}</p>
-                    )}
-                  </div>
-                  <span className="text-[9px] text-muted-foreground/30">{isOpen ? 'v' : '>'}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(event) => { event.stopPropagation(); deleteEntry.mutate(index); }}
-                    disabled={deleteEntry.isPending}
-                    className="opacity-0 group-hover:opacity-100"
-                  >
-                    X
-                  </Button>
-                </div>
-
-                {isOpen && (
-                  <div className="px-3 pb-2 space-y-1">
-                    <EditableUrl
-                      value={entry['base-url'] || ''}
-                      onSave={async (nextUrl) => {
-                        if (!keys) return;
-                        const nextEntries = [...keys];
-                        nextEntries[index] = { ...entry, 'base-url': nextUrl };
-                        await putEntries.mutateAsync(nextEntries);
-                      }}
-                    />
-
-                    {entry.models?.length > 0 && (
-                      <div className="space-y-px">
-                        {entry.models.map((model: any, modelIndex: number) => {
-                          const modelName = getProviderModelName(model);
-
-                          return (
-                            <div key={modelIndex} className="flex items-center gap-1.5 px-2 py-0.5 rounded hover:bg-muted/20 group/model">
-                              <code className="text-[9px] font-mono text-muted-foreground flex-1 truncate">{modelName}</code>
-                              {model.alias && model.alias !== modelName && (
-                                <span className="text-[9px] text-muted-foreground/40 truncate">{model.alias}</span>
-                              )}
-                              <div className="flex gap-0.5 opacity-0 group-hover/model:opacity-100 transition-opacity shrink-0">
-                                {PROVIDER_KEY_MOVE_TARGETS
-                                  .filter((target) => target.value !== provider)
-                                  .map((target) => (
-                                    <button
-                                      key={target.value}
-                                      title={`Move to ${target.label}`}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        moveModel.mutate({ entryIndex: index, modelName, targetProvider: target.value });
-                                      }}
-                                      disabled={moveModel.isPending}
-                                      className="px-1 py-px rounded text-[8px] border border-border text-muted-foreground/40 hover:text-foreground hover:border-muted-foreground/30 transition-colors disabled:opacity-50"
-                                    >
-                                      {target.label}
-                                    </button>
-                                  ))}
-                              </div>
-                            </div>
-                          );
-                        })}
+              return (
+                <li key={index} className={index > 0 ? 'border-t border-white/5' : ''}>
+                  <div className="relative flex items-stretch group hover:bg-white/[0.03]">
+                    <button
+                      type="button"
+                      onClick={() => setExpanded(isOpen ? null : index)}
+                      aria-expanded={isOpen}
+                      className="flex flex-1 min-w-0 items-center gap-2 px-3 py-1.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                    >
+                      {isOpen ? <ChevronDownIcon className="size-3 text-muted-foreground/50" /> : <ChevronRightIcon className="size-3 text-muted-foreground/50" />}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[0.625rem] text-foreground truncate">{title || '—'}</span>
+                          {secret && <code className="text-[0.5625rem] text-muted-foreground/40 font-mono">{maskSecret(secret)}</code>}
+                          <Badge variant="outline">{providerBadge}</Badge>
+                        </div>
+                        {entry['base-url'] && (
+                          <p className="text-[0.5625rem] text-muted-foreground/50 font-mono truncate">{entry['base-url']}</p>
+                        )}
+                        {entry.models?.length > 0 && (
+                          <p className="text-[0.5625rem] text-muted-foreground/40 tabular-nums">
+                            {entry.models.length} model{entry.models.length !== 1 ? 's' : ''}
+                          </p>
+                        )}
                       </div>
-                    )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteEntry.mutate(index)}
+                      disabled={deleteEntry.isPending}
+                      aria-label={`Delete ${title || 'entry'}`}
+                      title={`Delete ${title || 'entry'}`}
+                      className="inline-flex size-6 my-auto mr-2 items-center justify-center rounded text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    >
+                      <TrashIcon className="size-3" />
+                    </button>
                   </div>
-                )}
-              </div>
-            );
-          })}
+
+                  {isOpen && (
+                    <div className="px-3 pb-2 pl-8 space-y-1">
+                      <EditableUrl
+                        value={entry['base-url'] || ''}
+                        onSave={async (nextUrl) => {
+                          if (!keys) return;
+                          const nextEntries = [...keys];
+                          nextEntries[index] = { ...entry, 'base-url': nextUrl };
+                          await putEntries.mutateAsync(nextEntries);
+                        }}
+                      />
+
+                      {entry.models?.length > 0 && (
+                        <ul role="list" className="space-y-px">
+                          {entry.models.map((model: any, modelIndex: number) => {
+                            const modelName = getProviderModelName(model);
+
+                            return (
+                              <li
+                                key={modelIndex}
+                                className="flex items-center gap-1.5 px-2 py-0.5 rounded hover:bg-white/[0.03] group/model"
+                              >
+                                <code className="flex-1 min-w-0 text-[0.5625rem] font-mono text-muted-foreground truncate">{modelName}</code>
+                                {model.alias && model.alias !== modelName && (
+                                  <span className="text-[0.5625rem] text-muted-foreground/40 truncate">{model.alias}</span>
+                                )}
+                                <div className="flex gap-0.5 opacity-0 group-hover/model:opacity-100 shrink-0">
+                                  {PROVIDER_KEY_MOVE_TARGETS
+                                    .filter((target) => target.value !== provider)
+                                    .map((target) => (
+                                      <button
+                                        type="button"
+                                        key={target.value}
+                                        title={`Move to ${target.label}`}
+                                        aria-label={`Move ${modelName} to ${target.label}`}
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          moveModel.mutate({ entryIndex: index, modelName, targetProvider: target.value });
+                                        }}
+                                        disabled={moveModel.isPending}
+                                        className="inline-flex items-center rounded px-1 py-px text-[0.5rem] ring-1 ring-inset ring-white/10 text-muted-foreground/50 hover:ring-white/20 hover:text-foreground disabled:opacity-50"
+                                      >
+                                        {target.label}
+                                      </button>
+                                    ))}
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         </CardContent>
       </Card>
 
       {adding ? (
         <Card>
           <CardContent className="space-y-1.5">
-            <Input value={value} onChange={(e) => setValue(e.target.value)} placeholder={keyField === 'name' ? 'Name' : 'API key'} />
+            <Input
+              name="new-entry-value"
+              aria-label={keyField === 'name' ? 'Name' : 'API key'}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={keyField === 'name' ? 'Name' : 'API key'}
+            />
             <div className="grid grid-cols-2 gap-1.5">
-              <Input value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="Prefix" />
-              <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="Base URL" />
+              <Input name="new-entry-prefix" aria-label="Prefix" value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="Prefix" />
+              <Input name="new-entry-base-url" aria-label="Base URL" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="Base URL" />
             </div>
             <div className="flex gap-1.5">
               <Button
@@ -489,7 +542,10 @@ function Section({ provider, keyField }: { provider: ProviderId; keyField: 'api-
           </CardContent>
         </Card>
       ) : (
-        <Button variant="outline" size="sm" onClick={() => setAdding(true)}>+ Add Key</Button>
+        <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
+          <PlusIcon className="size-3" />
+          Add Key
+        </Button>
       )}
     </div>
   );
@@ -503,9 +559,10 @@ function EditableUrl({ value, onSave }: { value: string; onSave: (nextValue: str
   if (!editing) {
     return (
       <button
+        type="button"
         onClick={(event) => { event.stopPropagation(); setDraft(value); setEditing(true); }}
-        className="text-[9px] text-muted-foreground/50 font-mono hover:text-muted-foreground transition-colors text-left truncate w-full"
         title="Click to edit base URL"
+        className="w-full truncate text-left text-[0.5625rem] font-mono text-muted-foreground/50 hover:text-muted-foreground"
       >
         {value || 'No base URL set'}
       </button>
@@ -523,9 +580,11 @@ function EditableUrl({ value, onSave }: { value: string; onSave: (nextValue: str
   return (
     <div className="flex gap-1" onClick={(event) => event.stopPropagation()}>
       <Input
+        name="base-url-edit"
+        aria-label="Base URL"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        placeholder="https://..."
+        placeholder="https://…"
         className="flex-1"
         onKeyDown={(event) => {
           if (event.key === 'Enter') save();
@@ -533,9 +592,11 @@ function EditableUrl({ value, onSave }: { value: string; onSave: (nextValue: str
         }}
       />
       <Button size="sm" disabled={saving} onClick={save}>
-        {saving ? '...' : 'Save'}
+        {saving ? '…' : 'Save'}
       </Button>
-      <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>X</Button>
+      <Button variant="ghost" size="iconSm" onClick={() => setEditing(false)} aria-label="Cancel edit" title="Cancel">
+        <XMarkIcon className="size-3" />
+      </Button>
     </div>
   );
 }

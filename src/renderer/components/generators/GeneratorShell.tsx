@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useId } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAPIKeys, useModelDefinitions, useModelsDevCatalog, useProxyStatus } from '../../hooks/useIPC';
 import { isCustomChannel, resolveCustomChannelModels } from '../../lib/customModels';
 import { maskSecret } from '../../lib/providerKeys';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Input, Badge, Select } from '../ui';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Input, Badge, Select, Field, Label } from '../ui';
+import { CopyIcon, CheckIcon, XMarkIcon, SelectChevron } from '../icons';
 
 export interface SelectedModel {
   id: string;
@@ -55,6 +56,7 @@ export function GeneratorShell({ def, availableChannels }: Props) {
   const [profileModes, setProfileModes] = useState<Record<string, ProfileMode>>({});
   const [apiKeyRef, setApiKeyRef] = useState(def.apiKeyPlaceholder);
   const [copied, setCopied] = useState(false);
+  const configuredKeyId = useId();
 
   const customChannel = isCustomChannel(channel);
   const { data: modelData } = useModelDefinitions(channel, !customChannel);
@@ -75,10 +77,7 @@ export function GeneratorShell({ def, availableChannels }: Props) {
 
   const addModel = (model: any) => {
     setSelected((previous) => {
-      if (previous.some((entry) => entry.id === model.id)) {
-        return previous;
-      }
-
+      if (previous.some((entry) => entry.id === model.id)) return previous;
       return [...previous, toSelectedModel(model, format, channel)];
     });
   };
@@ -89,7 +88,6 @@ export function GeneratorShell({ def, availableChannels }: Props) {
       const nextModels = models
         .filter((model: any) => !selectedIds.has(model.id))
         .map((model: any) => toSelectedModel(model, format, channel));
-
       return [...previous, ...nextModels];
     });
   };
@@ -99,7 +97,6 @@ export function GeneratorShell({ def, availableChannels }: Props) {
   const toggleVariant = (id: string, variant: string) => {
     setSelected((previous) => previous.map((entry) => {
       if (entry.id !== id) return entry;
-
       return entry.variants.includes(variant)
         ? { ...entry, variants: entry.variants.filter((value) => value !== variant) }
         : { ...entry, variants: [...entry.variants, variant] };
@@ -109,7 +106,6 @@ export function GeneratorShell({ def, availableChannels }: Props) {
   const toggleSecondaryVariant = (id: string, variant: string) => {
     setSelected((previous) => previous.map((entry) => {
       if (entry.id !== id) return entry;
-
       return entry.secondaryVariants.includes(variant)
         ? { ...entry, secondaryVariants: entry.secondaryVariants.filter((value) => value !== variant) }
         : { ...entry, secondaryVariants: [...entry.secondaryVariants, variant] };
@@ -142,28 +138,42 @@ export function GeneratorShell({ def, availableChannels }: Props) {
         </CardHeader>
         <CardContent className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <label className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">API Key</label>
-              <Input value={apiKeyRef} onChange={(e) => setApiKeyRef(e.target.value)} placeholder={def.apiKeyPlaceholder} />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">Proxy</label>
-              <Input value={`127.0.0.1:${port}`} onChange={() => {}} disabled />
-            </div>
+            <Field label="API Key">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  name="generator-api-key"
+                  aria-label="API Key"
+                  value={apiKeyRef}
+                  onChange={(e) => setApiKeyRef(e.target.value)}
+                  placeholder={def.apiKeyPlaceholder}
+                />
+              )}
+            </Field>
+            <Field label="Proxy">
+              {({ id }) => (
+                <Input id={id} name="generator-proxy" aria-label="Proxy endpoint" value={`127.0.0.1:${port}`} onChange={() => {}} disabled />
+              )}
+            </Field>
           </div>
 
           {apiKeys && apiKeys.length > 0 && (
             <div className="space-y-1">
-              <label className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">Use configured key</label>
-              <select
-                onChange={(e) => { if (e.target.value) setApiKeyRef(e.target.value); }}
-                className="flex h-6 w-full rounded border border-input bg-transparent px-2 text-[11px] text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                <option value="">Select...</option>
-                {apiKeys.map((key: string, index: number) => (
-                  <option key={index} value={key}>{maskSecret(key)}</option>
-                ))}
-              </select>
+              <Label htmlFor={configuredKeyId}>Use configured key</Label>
+              <div className="inline-grid w-full grid-cols-[1fr_--spacing(6)] items-center rounded ring-1 ring-inset ring-white/10 bg-white/[0.02] has-focus-visible:outline-2 has-focus-visible:-outline-offset-1 has-focus-visible:outline-ring">
+                <select
+                  id={configuredKeyId}
+                  name="configured-key"
+                  onChange={(e) => { if (e.target.value) setApiKeyRef(e.target.value); }}
+                  className="col-span-full row-start-1 h-7 appearance-none bg-transparent pl-2 pr-6 text-[0.6875rem] text-foreground focus:outline-hidden"
+                >
+                  <option value="">Select…</option>
+                  {apiKeys.map((key: string, index: number) => (
+                    <option key={index} value={key}>{maskSecret(key)}</option>
+                  ))}
+                </select>
+                <SelectChevron className="text-muted-foreground" />
+              </div>
             </div>
           )}
         </CardContent>
@@ -173,6 +183,8 @@ export function GeneratorShell({ def, availableChannels }: Props) {
         <CardContent className="space-y-2">
           <div className="flex items-center gap-2">
             <Select
+              name="generator-channel"
+              aria-label="Channel"
               value={channel}
               onChange={(nextChannel) => {
                 setChannel(nextChannel);
@@ -180,31 +192,33 @@ export function GeneratorShell({ def, availableChannels }: Props) {
               }}
               options={availableChannels.map((option) => ({ value: option.channel, label: option.label }))}
             />
-            <Select value={format} onChange={setFormat} options={def.formats} />
-            <Button variant="outline" size="sm" onClick={addAll}>Add All</Button>
+            <Select name="generator-format" aria-label="Format" value={format} onChange={setFormat} options={def.formats} />
+            <Button variant="outline" onClick={addAll}>Add All</Button>
           </div>
 
-          <div className="max-h-40 overflow-y-auto space-y-px">
+          <ul role="list" className="max-h-40 overflow-y-auto space-y-px">
             {models.map((model: any) => {
               const isAdded = selected.some((entry) => entry.id === model.id);
               return (
-                <div key={model.id} className="flex items-center gap-2 py-0.5">
+                <li key={model.id} className="flex items-center gap-2 py-0.5">
                   <button
+                    type="button"
                     onClick={() => isAdded ? removeModel(model.id) : addModel(model)}
-                    className={`flex-1 text-left px-2 py-1 rounded text-[10px] font-mono truncate transition-colors ${
-                      isAdded ? 'bg-accent/10 text-accent' : 'hover:bg-muted/40 text-muted-foreground'
+                    aria-pressed={isAdded}
+                    className={`flex-1 truncate rounded px-2 py-1 text-left text-[0.625rem] font-mono ${
+                      isAdded ? 'bg-accent/10 text-accent' : 'text-muted-foreground hover:bg-white/[0.04]'
                     }`}
                   >
                     {model.id}
                   </button>
                   {isAdded && <Badge variant="success">OK</Badge>}
-                </div>
+                </li>
               );
             })}
             {models.length === 0 && (
-              <p className="text-[10px] text-muted-foreground py-4 text-center">No models for this channel.</p>
+              <li className="py-4 text-center text-[0.625rem] text-muted-foreground">No models for this channel.</li>
             )}
-          </div>
+          </ul>
         </CardContent>
       </Card>
 
@@ -223,60 +237,76 @@ export function GeneratorShell({ def, availableChannels }: Props) {
               const standardCount = model.variants.length;
               const secondaryCount = model.secondaryVariants.length;
               return (
-                <div key={model.id} className={`px-3 py-2 ${index > 0 ? 'border-t border-border' : ''}`}>
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <code className="text-[10px] font-mono text-foreground flex-1 truncate">{model.id}</code>
-                    <Select value={model.format} onChange={(value) => updateFormat(model.id, value)} options={def.formats} />
+                <div key={model.id} className={`px-3 py-2 ${index > 0 ? 'border-t border-white/5' : ''}`}>
+                  <div className="mb-1.5 flex items-center gap-2">
+                    <code className="flex-1 min-w-0 truncate text-[0.625rem] font-mono text-foreground">{model.id}</code>
+                    <Select
+                      name={`format-${model.id}`}
+                      aria-label={`Format for ${model.id}`}
+                      value={model.format}
+                      onChange={(value) => updateFormat(model.id, value)}
+                      options={def.formats}
+                    />
                     {hasSecondaryProfile && secondaryProfile && (
-                      <div className="inline-flex rounded border border-border p-0.5">
+                      <div className="inline-flex h-7 items-center rounded ring-1 ring-inset ring-white/10 p-0.5" role="group" aria-label="Profile mode">
                         <button
+                          type="button"
                           onClick={() => setProfileMode(model.id, 'standard')}
-                          className={`px-2 py-0.5 rounded text-[9px] transition-colors ${
+                          aria-pressed={activeMode === 'standard'}
+                          className={`inline-flex h-full items-center rounded px-2 text-[0.5625rem] ${
                             activeMode === 'standard'
-                              ? 'bg-accent/15 text-accent'
-                              : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                              ? 'bg-white/[0.08] text-foreground'
+                              : 'text-muted-foreground hover:text-foreground'
                           }`}
                         >
                           Standard{standardCount > 0 ? ` ${standardCount}` : ''}
                         </button>
                         <button
+                          type="button"
                           onClick={() => setProfileMode(model.id, 'secondary')}
-                          className={`px-2 py-0.5 rounded text-[9px] transition-colors ${
+                          aria-pressed={activeMode === 'secondary'}
+                          className={`inline-flex h-full items-center rounded px-2 text-[0.5625rem] ${
                             activeMode === 'secondary'
-                              ? 'bg-accent/15 text-accent'
-                              : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                              ? 'bg-white/[0.08] text-foreground'
+                              : 'text-muted-foreground hover:text-foreground'
                           }`}
                         >
                           {secondaryProfile.label}{secondaryCount > 0 ? ` ${secondaryCount}` : ''}
                         </button>
                       </div>
                     )}
-                    <button onClick={() => removeModel(model.id)} className="text-[10px] text-muted-foreground hover:text-destructive transition-colors">
-                      X
+                    <button
+                      type="button"
+                      onClick={() => removeModel(model.id)}
+                      aria-label={`Remove ${model.id}`}
+                      title={`Remove ${model.id}`}
+                      className="inline-flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    >
+                      <XMarkIcon className="size-3" />
                     </button>
                   </div>
                   {chips.length > 0 && (
-                    <div>
-                      <div className="flex flex-wrap gap-1">
-                        {chips.map((chip) => {
-                          const active = activeVariants.includes(chip.value);
-                          return (
-                            <button
-                              key={`${activeMode}-${chip.value}`}
-                              onClick={() => activeMode === 'secondary'
-                                ? toggleSecondaryVariant(model.id, chip.value)
-                                : toggleVariant(model.id, chip.value)}
-                              className={`px-1.5 py-0.5 rounded text-[9px] border transition-colors ${
-                                active
-                                  ? 'bg-accent/15 text-accent border-accent/30'
-                                  : 'bg-transparent text-muted-foreground/60 border-border hover:border-muted-foreground/30 hover:text-muted-foreground'
-                              }`}
-                            >
-                              {chip.label}
-                            </button>
-                          );
-                        })}
-                      </div>
+                    <div className="flex flex-wrap gap-1">
+                      {chips.map((chip) => {
+                        const active = activeVariants.includes(chip.value);
+                        return (
+                          <button
+                            type="button"
+                            key={`${activeMode}-${chip.value}`}
+                            onClick={() => activeMode === 'secondary'
+                              ? toggleSecondaryVariant(model.id, chip.value)
+                              : toggleVariant(model.id, chip.value)}
+                            aria-pressed={active}
+                            className={`rounded px-1.5 py-0.5 text-[0.5625rem] ring-1 ring-inset ${
+                              active
+                                ? 'bg-accent/15 text-accent ring-accent/30'
+                                : 'bg-transparent text-muted-foreground ring-white/10 hover:ring-white/20 hover:text-foreground'
+                            }`}
+                          >
+                            {chip.label}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -292,13 +322,13 @@ export function GeneratorShell({ def, availableChannels }: Props) {
             <div className="flex items-center justify-between">
               <CardTitle>Output</CardTitle>
               <Button variant="outline" size="sm" onClick={copyToClipboard}>
-                {copied ? 'Copied!' : 'Copy'}
+                {copied ? <><CheckIcon className="size-3" />Copied</> : <><CopyIcon className="size-3" />Copy</>}
               </Button>
             </div>
             <CardDescription>{def.description}</CardDescription>
           </CardHeader>
           <CardContent>
-            <pre className="text-[10px] font-mono text-muted-foreground bg-muted/30 rounded p-2 overflow-x-auto max-h-60 overflow-y-auto whitespace-pre select-text">
+            <pre className="max-h-60 select-text overflow-auto whitespace-pre rounded bg-black/40 p-2 font-mono text-[0.625rem] text-muted-foreground ring-1 ring-inset ring-white/5">
               {jsonOutput}
             </pre>
           </CardContent>

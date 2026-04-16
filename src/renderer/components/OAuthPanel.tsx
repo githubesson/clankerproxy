@@ -1,49 +1,73 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useId } from 'react';
 import { useIsProxyRunning, useOAuthLogin } from '../hooks/useIPC';
-import { Card, CardContent, Button, Badge, ProxyRequired } from './ui';
+import { Card, CardContent, Button, Badge, Label, ProxyRequired } from './ui';
 import { OAUTH_CATEGORIES, OAUTH_PROVIDERS } from '../../shared/provider-registry';
+import { SelectChevron, SpinnerIcon } from './icons';
 
 export function OAuthPanel() {
   const isRunning = useIsProxyRunning();
   const [selected, setSelected] = useState(OAUTH_PROVIDERS[0].id);
   const [history, setHistory] = useState<{ id: string; label: string; status: 'pending' | 'success' | 'error'; time: string }[]>([]);
+  const providerSelectId = useId();
 
   if (!isRunning) return <ProxyRequired />;
   const provider = OAUTH_PROVIDERS.find((p) => p.id === selected) ?? OAUTH_PROVIDERS[0];
 
   return (
     <div className="max-w-md space-y-2">
-      <p className="text-[10px] text-muted-foreground">Authenticate via OAuth. Opens your browser.</p>
+      <p className="text-[0.625rem] text-muted-foreground text-pretty">Authenticate via OAuth. Opens your browser.</p>
 
       <Card>
         <CardContent className="space-y-2">
           <div className="space-y-1">
-            <label className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">Provider</label>
-            <select value={selected} onChange={(e) => setSelected(e.target.value)}
-              className="flex h-6 w-full rounded border border-input bg-transparent px-2 text-[11px] text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-              {OAUTH_CATEGORIES.map((cat) => (
-                <optgroup key={cat.label} label={cat.label}>
-                  {cat.providers.map((p) => <option key={p.id} value={p.id}>{p.label} — {p.desc}</option>)}
-                </optgroup>
-              ))}
-            </select>
+            <Label htmlFor={providerSelectId}>Provider</Label>
+            <div className="inline-grid w-full grid-cols-[1fr_--spacing(6)] items-center rounded ring-1 ring-inset ring-white/10 bg-white/[0.02] has-focus-visible:outline-2 has-focus-visible:-outline-offset-1 has-focus-visible:outline-ring">
+              <select
+                id={providerSelectId}
+                name="oauth-provider"
+                value={selected}
+                onChange={(e) => setSelected(e.target.value)}
+                className="col-span-full row-start-1 h-7 appearance-none bg-transparent pl-2 pr-6 text-[0.6875rem] text-foreground focus:outline-hidden"
+              >
+                {OAUTH_CATEGORIES.map((cat) => (
+                  <optgroup key={cat.label} label={cat.label}>
+                    {cat.providers.map((p) => (
+                      <option key={p.id} value={p.id}>{p.label} — {p.desc}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <SelectChevron className="text-muted-foreground" />
+            </div>
           </div>
-          <Trigger provider={provider} onResult={(s) => setHistory((h) => [{ id: provider.id, label: provider.label, status: s, time: new Date().toLocaleTimeString() }, ...h].slice(0, 15))} />
+          <Trigger
+            provider={provider}
+            onResult={(s) =>
+              setHistory((h) =>
+                [{ id: provider.id, label: provider.label, status: s, time: new Date().toLocaleTimeString() }, ...h].slice(0, 15),
+              )
+            }
+          />
         </CardContent>
       </Card>
 
       {history.length > 0 && (
         <Card>
           <CardContent className="p-0">
-            {history.map((e, i) => (
-              <div key={`${e.time}-${i}`} className={`flex items-center gap-2 px-3 py-1 ${i > 0 ? 'border-t border-border' : ''}`}>
-                <span className="text-[10px] text-foreground font-medium">{e.label}</span>
-                <span className="text-[9px] text-muted-foreground/40 font-mono flex-1">{e.time}</span>
-                <Badge variant={e.status === 'success' ? 'success' : e.status === 'error' ? 'destructive' : 'warning'}>
-                  {e.status === 'success' ? 'OK' : e.status === 'error' ? 'Fail' : '...'}
-                </Badge>
-              </div>
-            ))}
+            <ul role="list">
+              {history.map((e, i) => (
+                <li
+                  key={`${e.time}-${i}`}
+                  className={`flex items-center gap-2 px-3 py-1 ${i > 0 ? 'border-t border-white/5' : ''}`}
+                >
+                  <span className="text-[0.625rem] text-foreground font-medium">{e.label}</span>
+                  <span className="flex-1 text-[0.5625rem] text-muted-foreground/50 font-mono tabular-nums">{e.time}</span>
+                  <Badge variant={e.status === 'success' ? 'success' : e.status === 'error' ? 'destructive' : 'warning'}>
+                    {e.status === 'success' ? 'OK' : e.status === 'error' ? 'Fail' : '…'}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
           </CardContent>
         </Card>
       )}
@@ -75,13 +99,15 @@ function Trigger({ provider, onResult }: { provider: { id: string; label: string
   }, [polling, state, poll]);
 
   return (
-    <div className="flex items-center gap-2">
-      <Button className="flex-1" onClick={async () => {
-        try { const r = await login.mutateAsync(provider.id); setState(r.state); setPolling(true); } catch { onResult('error'); }
-      }} disabled={polling || login.isPending}>
-        {polling ? 'Waiting...' : `Login — ${provider.label}`}
-      </Button>
-      {polling && <div className="w-1.5 h-1.5 rounded-full bg-warning" style={{ animation: 'pulse-dot 1.5s ease-in-out infinite' }} />}
-    </div>
+    <Button
+      className="w-full"
+      onClick={async () => {
+        try { const r = await login.mutateAsync(provider.id); setState(r.state); setPolling(true); }
+        catch { onResult('error'); }
+      }}
+      disabled={polling || login.isPending}
+    >
+      {polling ? <><SpinnerIcon className="size-3" />Waiting…</> : `Login — ${provider.label}`}
+    </Button>
   );
 }
