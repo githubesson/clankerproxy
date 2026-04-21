@@ -5,8 +5,8 @@ import { store } from './store';
 import https from 'https';
 import http from 'http';
 
-const REPO = 'router-for-me/CLIProxyAPIPlus';
-const BINARY_NAME = process.platform === 'win32' ? 'cli-proxy-api-plus.exe' : 'cli-proxy-api-plus';
+const REPO = 'router-for-me/CLIProxyAPI';
+const BINARY_NAME = process.platform === 'win32' ? 'cli-proxy-api.exe' : 'cli-proxy-api';
 
 function getBinDir(): string {
   const dir = join(app.getPath('userData'), 'bin');
@@ -173,7 +173,7 @@ export async function downloadBinary(release?: ReleaseInfo): Promise<string> {
     for (const entry of readdirSync(dir)) {
       const full = join(dir, entry);
       const stat = statSync(full);
-      if (stat.isFile() && (entry === BINARY_NAME || entry === 'cli-proxy-api-plus' || entry === 'cli-proxy-api-plus.exe')) {
+      if (stat.isFile() && (entry === BINARY_NAME || entry === 'cli-proxy-api' || entry === 'cli-proxy-api.exe')) {
         return full;
       }
       if (stat.isDirectory() && !entry.startsWith('_')) {

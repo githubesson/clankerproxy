@@ -26,7 +26,7 @@ export function Dashboard() {
       <Card>
         <CardHeader>
           <CardTitle>Engine</CardTitle>
-          <CardDescription>CLIProxyAPIPlus binary</CardDescription>
+          <CardDescription>CLIProxyAPI binary</CardDescription>
         </CardHeader>
         <CardContent>
           {binary?.installed ? (

@@ -51,10 +51,10 @@ export class ProxyManager extends EventEmitter {
   private ensureConfig(): string {
     const configPath = this.getConfigPath();
     if (!existsSync(configPath)) {
-      // Try to copy from CLIProxyAPIPlus example config
+      // Try to copy from CLIProxyAPI example config
       const examplePaths = [
-        join(app.getAppPath(), 'CLIProxyAPIPlus', 'config.example.yaml'),
-        join(process.cwd(), 'CLIProxyAPIPlus', 'config.example.yaml'),
+        join(app.getAppPath(), 'CLIProxyAPI', 'config.example.yaml'),
+        join(process.cwd(), 'CLIProxyAPI', 'config.example.yaml'),
       ];
       let copied = false;
       for (const exPath of examplePaths) {

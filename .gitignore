@@ -6,4 +6,5 @@ release/
 *.log
 .env
 .claude/
+CLIProxyAPI/
 CLIProxyAPIPlus/

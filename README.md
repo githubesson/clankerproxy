@@ -2,18 +2,18 @@
 
 ![screenshot](assets/screenshot.png)
 
-A system tray app that wraps [CLIProxyAPIPlus](https://github.com/router-for-me/CLIProxyAPIPlus) in a simple GUI. It manages the proxy binary, API keys, OAuth logins, and config without touching the command line.
+A system tray app that wraps [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) in a simple GUI. It manages the proxy binary, API keys, OAuth logins, and config without touching the command line.
 
 ## What it does
 
-ClankerProxy sits in your system tray and runs CLIProxyAPIPlus as a background process. The proxy gives you a single local endpoint that routes to multiple LLM providers, translating between API formats automatically.
+ClankerProxy sits in your system tray and runs CLIProxyAPI as a background process. The proxy gives you a single local endpoint that routes to multiple LLM providers, translating between API formats automatically.
 
 You point your tools at `http://127.0.0.1:8317` and the proxy handles the rest. Claude, Gemini, Codex, Cursor, Kimi, Qwen, and a dozen other providers all behind one URL.
 
 ## Features
 
 - **Tray app** -- starts with your system, lives in the tray, no terminal needed
-- **Auto-download** -- grabs the latest CLIProxyAPIPlus binary from GitHub on first launch
+- **Auto-download** -- grabs the latest CLIProxyAPI binary from GitHub on first launch
 - **API key management** -- add/remove proxy auth keys and provider API keys through the UI
 - **OAuth logins** -- one-click browser-based login for Claude, Gemini, Codex, GitHub Copilot, Cursor, Kimi, Qwen, and more
 - **Auth file management** -- enable/disable/delete credential files
@@ -29,7 +29,7 @@ Claude, Gemini, Codex, GitHub Copilot, GitLab Duo, Kiro (AWS), Cursor, Kimi, Qwe
 
 ## How it works
 
-1. On launch, downloads the CLIProxyAPIPlus Go binary if not already present
+1. On launch, downloads the CLIProxyAPI Go binary if not already present
 2. Generates a per-session management password and injects it into the config
 3. Spawns the binary as a child process
 4. Talks to the proxy's management API (`/v0/management/*`) for everything -- config changes, key management, OAuth flows, logs
@@ -41,7 +41,7 @@ Claude, Gemini, Codex, GitHub Copilot, GitLab Duo, Kiro (AWS), Cursor, Kimi, Qwe
 - React + TypeScript
 - Tailwind CSS
 - TanStack Query
-- CLIProxyAPIPlus (Go binary, downloaded at runtime)
+- CLIProxyAPI (Go binary, downloaded at runtime)
 
 ## Running locally
 

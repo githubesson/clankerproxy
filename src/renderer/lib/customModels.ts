@@ -37,7 +37,7 @@ export function resolveBuiltInChannelModels(
   const catalogModels = flattenCatalogModels(modelsCatalog);
   const mergedModels = [...proxyModels];
 
-  // Some CLIProxyAPIPlus builds have served a stale Claude model-definition
+  // Some CLIProxyAPI builds have served a stale Claude model-definition
   // list even after the engine binary on disk was updated. The renderer already
   // has access to models.dev, so supplement missing Claude models from that
   // catalog rather than hiding newer Anthropic models from the UI entirely.
