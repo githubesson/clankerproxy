@@ -74,6 +74,11 @@ const api = {
     get: () => invoke(IPC_CHANNELS.appLogs.get)() as Promise<string[]>,
     onLog: (callback: (lines: string[]) => void) => subscribe(IPC_CHANNELS.appLogs.onLog, callback),
   },
+  appUpdate: {
+    getVersion: () => invoke(IPC_CHANNELS.appUpdate.getVersion)() as Promise<string>,
+    check: () => invoke(IPC_CHANNELS.appUpdate.check)() as Promise<{ version: string; releaseUrl: string; publishedAt: string } | null>,
+    openReleasePage: (url: string) => invoke(IPC_CHANNELS.appUpdate.openReleasePage)(url) as Promise<void>,
+  },
   prefs: {
     get: (key: string) => invoke(IPC_CHANNELS.prefs.get)(key),
     set: (key: string, value: any) => invoke(IPC_CHANNELS.prefs.set)(key, value),

@@ -6,6 +6,7 @@ import { registerIPCHandlers } from './ipc-handlers';
 import { isBinaryInstalled, downloadBinary } from './binary-manager';
 import { store } from './store';
 import { startAutoUpdater, restartAutoUpdater, checkForUpdateOnStartup } from './auto-updater';
+import { checkForAppUpdateOnStartup, startAppUpdaterPolling } from './app-updater';
 import { appLogger } from './app-logger';
 
 function log(msg: string) { appLogger.log(msg); }
@@ -150,6 +151,11 @@ app.on('ready', async () => {
   // visible instead of silently hiding newer upstream models from the user.
   // Fire-and-forget; failures are logged inside the helper.
   void checkForUpdateOnStartup();
+
+  // Check for a newer clankerproxy release on startup and then hourly. Surfaced
+  // in the Dashboard; user clicks to open the release page in a browser.
+  void checkForAppUpdateOnStartup();
+  startAppUpdaterPolling();
 });
 
 // Keep the app running when all windows are closed (tray app behavior)

@@ -8,7 +8,7 @@ import { Settings } from './components/Settings';
 import { LogViewer } from './components/LogViewer';
 import { Models } from './components/Models';
 import { ConfigGenerator } from './components/ConfigGenerator';
-import { useProxyStatus, useStartProxy, useStopProxy, useRestartProxy } from './hooks/useIPC';
+import { useProxyStatus, useStartProxy, useStopProxy, useRestartProxy, useCheckUpdate, useCheckAppUpdate, useBinaryStatus } from './hooks/useIPC';
 import { PlayIcon, StopIcon, RestartIcon, PlusIcon, MinusIcon, SpinnerIcon } from './components/icons';
 
 const NAV = [
@@ -34,6 +34,10 @@ export function App() {
   const startProxy = useStartProxy();
   const stopProxy = useStopProxy();
   const restartProxy = useRestartProxy();
+  const { data: binaryUpdate } = useCheckUpdate();
+  const { data: appUpdate } = useCheckAppUpdate();
+  const { data: binary } = useBinaryStatus();
+  const dashboardHasBadge = Boolean(appUpdate) || Boolean(binaryUpdate && binary?.installed);
 
   const state = status?.state ?? 'stopped';
   const port = status?.port ?? 8317;
@@ -125,19 +129,27 @@ export function App() {
           <ul className="space-y-px" role="list">
             {NAV.map((item) => {
               const isActive = active === item.id;
+              const showBadge = item.id === 'dashboard' && dashboardHasBadge;
               return (
                 <li key={item.id}>
                   <button
                     type="button"
                     onClick={() => setActive(item.id)}
                     aria-current={isActive ? 'page' : undefined}
-                    className={`w-full text-left px-2 py-1 rounded text-[0.6875rem] ${
+                    className={`w-full flex items-center gap-1.5 text-left px-2 py-1 rounded text-[0.6875rem] ${
                       isActive
                         ? 'bg-white/[0.06] text-foreground'
                         : 'text-muted-foreground hover:bg-white/[0.03] hover:text-foreground'
                     }`}
                   >
-                    {item.label}
+                    <span className="flex-1 truncate">{item.label}</span>
+                    {showBadge && (
+                      <span
+                        aria-label="Update available"
+                        title="Update available"
+                        className="size-1.5 rounded-full bg-accent shadow-[0_0_0_2px] shadow-accent/15 shrink-0"
+                      />
+                    )}
                   </button>
                 </li>
               );

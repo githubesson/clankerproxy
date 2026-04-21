@@ -1,7 +1,9 @@
 import React from 'react';
-import { useProxyStatus, useIsProxyRunning, useBinaryStatus, useDownloadBinary, useAuthFiles, useCheckUpdate } from '../hooks/useIPC';
+import { useProxyStatus, useIsProxyRunning, useBinaryStatus, useDownloadBinary, useAuthFiles, useCheckUpdate, useAppVersion, useCheckAppUpdate } from '../hooks/useIPC';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button } from './ui';
 import { DownloadIcon, SpinnerIcon } from './icons';
+
+const api = () => window.clankerProxy;
 
 export function Dashboard() {
   const { data: status } = useProxyStatus();
@@ -14,6 +16,8 @@ export function Dashboard() {
   // upstream models (e.g. a freshly-added Anthropic model not appearing in
   // the Models tab because the installed proxy pre-dates that model entry).
   const { data: update } = useCheckUpdate();
+  const { data: appVersion } = useAppVersion();
+  const { data: appUpdate } = useCheckAppUpdate();
 
   const isRunning = useIsProxyRunning();
   const port = status?.port ?? 8317;
@@ -22,6 +26,43 @@ export function Dashboard() {
 
   return (
     <div className="max-w-lg space-y-3 @container">
+      {/* App */}
+      <Card>
+        <CardHeader>
+          <CardTitle>ClankerProxy</CardTitle>
+          <CardDescription>Tray app</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 flex flex-col gap-0.5">
+              <div className="flex items-baseline gap-2">
+                <span className="text-[0.6875rem] text-foreground">Installed</span>
+                <span className="text-[0.625rem] text-muted-foreground font-mono truncate">
+                  {appVersion ? `v${appVersion}` : '?'}
+                </span>
+              </div>
+              {appUpdate && (
+                <span className="text-[0.5625rem] text-accent font-mono truncate" title={`Update available: v${appUpdate.version}`}>
+                  → v{appUpdate.version} available
+                </span>
+              )}
+            </div>
+            {appUpdate ? (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => api().appUpdate.openReleasePage(appUpdate.releaseUrl)}
+                title={`Open v${appUpdate.version} release page in browser`}
+              >
+                <DownloadIcon className="size-3" />Download
+              </Button>
+            ) : (
+              <span className="text-[0.5625rem] text-muted-foreground/70 font-mono">up to date</span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Binary */}
       <Card>
         <CardHeader>

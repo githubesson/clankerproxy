@@ -166,6 +166,25 @@ export function useCheckUpdate() {
   });
 }
 
+export function useAppVersion() {
+  return useQuery({
+    queryKey: ['app', 'version'],
+    queryFn: () => api().appUpdate.getVersion(),
+    staleTime: Infinity,
+  });
+}
+
+export function useCheckAppUpdate() {
+  return useQuery({
+    queryKey: ['app', 'update'],
+    queryFn: () => api().appUpdate.check(),
+    staleTime: 60 * 60 * 1000,
+    refetchInterval: 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+}
+
 // API Keys — auto-fetches when proxy is running, polls every 5s
 export function useAPIKeys() {
   return useProxyQuery({

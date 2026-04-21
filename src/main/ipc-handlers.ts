@@ -1,11 +1,12 @@
 import https from 'https';
 import os from 'os';
-import { BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { downloadBinary, getLatestRelease, checkForUpdate, isBinaryInstalled, type ReleaseInfo } from './binary-manager';
 import { ProxyManager } from './proxy-manager';
 import { store } from './store';
 import { IPC_CHANNELS } from '../shared/ipc';
 import { appLogger } from './app-logger';
+import { checkForAppUpdate } from './app-updater';
 
 export function registerIPCHandlers(proxyManager: ProxyManager) {
   const requireClient = () => {
@@ -113,6 +114,10 @@ export function registerIPCHandlers(proxyManager: ProxyManager) {
   });
 
   handle(IPC_CHANNELS.appLogs.get, () => appLogger.getLogs());
+
+  handle(IPC_CHANNELS.appUpdate.getVersion, () => app.getVersion());
+  handle(IPC_CHANNELS.appUpdate.check, () => checkForAppUpdate());
+  handle(IPC_CHANNELS.appUpdate.openReleasePage, (url: string) => shell.openExternal(url));
 
   handle(IPC_CHANNELS.prefs.get, (key: string) => store.get(key as any));
   handle(IPC_CHANNELS.prefs.set, (key: string, value: any) => store.set(key as any, value));

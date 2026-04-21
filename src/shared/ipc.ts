@@ -67,4 +67,9 @@ export const IPC_CHANNELS = {
     get: 'appLogs:get',
     onLog: 'app:log',
   },
+  appUpdate: {
+    getVersion: 'appUpdate:getVersion',
+    check: 'appUpdate:check',
+    openReleasePage: 'appUpdate:openReleasePage',
+  },
 } as const;
