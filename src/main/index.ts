@@ -5,7 +5,7 @@ import { createTray } from './tray';
 import { registerIPCHandlers } from './ipc-handlers';
 import { isBinaryInstalled, downloadBinary } from './binary-manager';
 import { store } from './store';
-import { startAutoUpdater, restartAutoUpdater } from './auto-updater';
+import { startAutoUpdater, restartAutoUpdater, checkForUpdateOnStartup } from './auto-updater';
 import { appLogger } from './app-logger';
 
 function log(msg: string) { appLogger.log(msg); }
@@ -135,6 +135,13 @@ app.on('ready', async () => {
   startAutoUpdater();
   store.onDidChange('autoUpdateBinary', () => restartAutoUpdater());
   store.onDidChange('autoUpdateIntervalMinutes', () => restartAutoUpdater());
+
+  // Always log whether a binary update is available at startup, even when
+  // `autoUpdateBinary` is disabled. The renderer shows this availability via
+  // the `binary:checkForUpdate` IPC on the Dashboard so stale binaries are
+  // visible instead of silently hiding newer upstream models from the user.
+  // Fire-and-forget; failures are logged inside the helper.
+  void checkForUpdateOnStartup();
 });
 
 // Keep the app running when all windows are closed (tray app behavior)

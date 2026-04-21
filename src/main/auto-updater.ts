@@ -26,6 +26,28 @@ async function performUpdate(): Promise<void> {
   }
 }
 
+/**
+ * One-shot non-downloading check at app startup. Runs regardless of the
+ * `autoUpdateBinary` pref so stale binaries don't silently hide newer models
+ * and features from the user - the renderer surfaces the availability via the
+ * `binary:checkForUpdate` IPC. This purely logs; downloading is gated by the
+ * user's opt-in `autoUpdateBinary` pref (handled by startAutoUpdater).
+ */
+export async function checkForUpdateOnStartup(): Promise<void> {
+  if (!isBinaryInstalled()) return;
+
+  try {
+    const update = await checkForUpdate();
+    if (update) {
+      log(`Startup check: new version available (${update.version}). Installed binary will be offered an update in the Dashboard.`);
+    } else {
+      log('Startup check: binary is up to date.');
+    }
+  } catch (err) {
+    log(`Startup check failed: ${err}`);
+  }
+}
+
 export function startAutoUpdater(): void {
   stopAutoUpdater();
 

@@ -141,7 +141,13 @@ export function useCheckUpdate() {
   return useQuery({
     queryKey: ['binary', 'update'],
     queryFn: () => api().binary.checkForUpdate(),
-    enabled: false,
+    // Run on mount so the Dashboard can surface an "update available" badge
+    // without the user having to click anything. Recheck every 30m.
+    staleTime: 30 * 60 * 1000,
+    refetchInterval: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    // Tolerate transient network failures quietly.
+    retry: 1,
   });
 }
 
