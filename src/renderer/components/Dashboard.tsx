@@ -1,5 +1,5 @@
 import React from 'react';
-import { useProxyStatus, useIsProxyRunning, useBinaryStatus, useDownloadBinary, useAuthFiles } from '../hooks/useIPC';
+import { useProxyStatus, useIsProxyRunning, useBinaryStatus, useDownloadBinary, useAuthFiles, useCheckUpdate } from '../hooks/useIPC';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button } from './ui';
 import { DownloadIcon, SpinnerIcon } from './icons';
 
@@ -8,9 +8,17 @@ export function Dashboard() {
   const { data: binary } = useBinaryStatus();
   const downloadBinary = useDownloadBinary();
   const { data: authFiles } = useAuthFiles();
+  // Auto-runs on mount; returns ReleaseInfo if the installed binary is behind
+  // the latest upstream release, otherwise null. Drives the "update available"
+  // badge so users don't end up with a stale binary silently hiding new
+  // upstream models (e.g. a freshly-added Anthropic model not appearing in
+  // the Models tab because the installed proxy pre-dates that model entry).
+  const { data: update } = useCheckUpdate();
 
   const isRunning = useIsProxyRunning();
   const port = status?.port ?? 8317;
+  const updateAvailable = Boolean(update && binary?.installed);
+  const updateWillRestartProxy = updateAvailable && isRunning;
 
   return (
     <div className="max-w-lg space-y-3 @container">
@@ -23,12 +31,38 @@ export function Dashboard() {
         <CardContent>
           {binary?.installed ? (
             <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0 flex items-baseline gap-2">
-                <span className="text-[0.6875rem] text-foreground">Installed</span>
-                <span className="text-[0.625rem] text-muted-foreground font-mono truncate">{binary.version || '?'}</span>
+              <div className="min-w-0 flex flex-col gap-0.5">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-[0.6875rem] text-foreground">Installed</span>
+                  <span className="text-[0.625rem] text-muted-foreground font-mono truncate">{binary.version || '?'}</span>
+                </div>
+                {updateAvailable && update && (
+                  <span className="text-[0.5625rem] text-accent font-mono truncate" title={`Update available: ${update.version}`}>
+                    → {update.version} available
+                  </span>
+                )}
+                {updateWillRestartProxy && (
+                  <span className="text-[0.5625rem] text-muted-foreground/70 truncate">
+                    Updating restarts the running proxy automatically
+                  </span>
+                )}
               </div>
-              <Button variant="outline" size="sm" onClick={() => downloadBinary.mutate()} disabled={downloadBinary.isPending}>
-                {downloadBinary.isPending ? <><SpinnerIcon className="size-3" />Checking</> : 'Update'}
+              <Button
+                variant={updateAvailable ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => downloadBinary.mutate()}
+                disabled={downloadBinary.isPending}
+                title={updateAvailable && update
+                  ? updateWillRestartProxy
+                    ? `Download ${update.version} and restart the running proxy`
+                    : `Download ${update.version}`
+                  : 'Check for updates'}
+              >
+                {downloadBinary.isPending
+                  ? <><SpinnerIcon className="size-3" />{updateWillRestartProxy ? 'Updating' : updateAvailable ? 'Updating' : 'Checking'}</>
+                  : updateAvailable
+                    ? <><DownloadIcon className="size-3" />{updateWillRestartProxy ? 'Update & Restart' : 'Update'}</>
+                    : 'Check'}
               </Button>
             </div>
           ) : (

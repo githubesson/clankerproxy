@@ -23,6 +23,38 @@ export async function resolveCustomChannelModels(
   return primaryModels;
 }
 
+export function resolveBuiltInChannelModels(
+  channel: string,
+  modelData: { channel: string; models: any[] },
+  modelsCatalog?: Record<string, any>,
+): { channel: string; models: any[] } {
+  if (channel !== 'claude' || !modelsCatalog) {
+    return modelData;
+  }
+
+  const proxyModels = modelData.models ?? [];
+  const proxyModelIds = new Set(proxyModels.map((model: any) => model.id));
+  const catalogModels = flattenCatalogModels(modelsCatalog);
+  const mergedModels = [...proxyModels];
+
+  // Some CLIProxyAPIPlus builds have served a stale Claude model-definition
+  // list even after the engine binary on disk was updated. The renderer already
+  // has access to models.dev, so supplement missing Claude models from that
+  // catalog rather than hiding newer Anthropic models from the UI entirely.
+  for (const [modelId, catalogModel] of Object.entries(catalogModels)) {
+    if (!modelId.startsWith('claude-') || proxyModelIds.has(modelId)) {
+      continue;
+    }
+
+    mergedModels.push(mapCatalogModelToDefinition(modelId, catalogModel as any));
+  }
+
+  return {
+    ...modelData,
+    models: mergedModels,
+  };
+}
+
 async function getCustomChannelProviderModels(
   api: ProviderKeysAPI,
   channel: string,
@@ -62,6 +94,18 @@ function mapProviderModels(providerModels: any[], catalogModels: Record<string, 
       tool_call: catalogModel.tool_call ?? false,
     };
   });
+}
+
+function mapCatalogModelToDefinition(modelId: string, catalogModel: any): any {
+  return {
+    id: modelId,
+    display_name: catalogModel.name || catalogModel.display_name || modelId,
+    max_completion_tokens: catalogModel.limit?.output ?? catalogModel.max_completion_tokens ?? 0,
+    context_length: catalogModel.limit?.context ?? catalogModel.context_length ?? 0,
+    reasoning: catalogModel.reasoning ?? Boolean(catalogModel.thinking),
+    tool_call: catalogModel.tool_call ?? false,
+    owned_by: catalogModel.owned_by || catalogModel.provider?.id || 'anthropic',
+  };
 }
 
 function flattenCatalogModels(modelsCatalog: Record<string, any>): Record<string, any> {

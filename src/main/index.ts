@@ -5,12 +5,20 @@ import { createTray } from './tray';
 import { registerIPCHandlers } from './ipc-handlers';
 import { isBinaryInstalled, downloadBinary } from './binary-manager';
 import { store } from './store';
-import { startAutoUpdater, restartAutoUpdater } from './auto-updater';
+import { startAutoUpdater, restartAutoUpdater, checkForUpdateOnStartup } from './auto-updater';
 import { appLogger } from './app-logger';
 
 function log(msg: string) { appLogger.log(msg); }
 process.on('uncaughtException', (err) => { log(`UNCAUGHT: ${err.stack ?? err}`); });
 process.on('unhandledRejection', (err) => { log(`UNHANDLED: ${err}`); });
+
+async function restartRunningProxyAfterBinaryUpdate(version: string): Promise<void> {
+  if (proxyManager.state !== 'running') return;
+
+  log(`Binary updated to ${version}; restarting proxy to load the new engine.`);
+  await proxyManager.restart();
+  log(`Proxy restarted on ${version}.`);
+}
 
 // Handle Squirrel install/update/uninstall events on Windows.
 if (process.platform === 'win32' && process.argv[1]?.startsWith('--squirrel-')) {
@@ -132,9 +140,16 @@ app.on('ready', async () => {
   }
 
   // Start binary auto-updater
-  startAutoUpdater();
-  store.onDidChange('autoUpdateBinary', () => restartAutoUpdater());
-  store.onDidChange('autoUpdateIntervalMinutes', () => restartAutoUpdater());
+  startAutoUpdater(restartRunningProxyAfterBinaryUpdate);
+  store.onDidChange('autoUpdateBinary', () => restartAutoUpdater(restartRunningProxyAfterBinaryUpdate));
+  store.onDidChange('autoUpdateIntervalMinutes', () => restartAutoUpdater(restartRunningProxyAfterBinaryUpdate));
+
+  // Always log whether a binary update is available at startup, even when
+  // `autoUpdateBinary` is disabled. The renderer shows this availability via
+  // the `binary:checkForUpdate` IPC on the Dashboard so stale binaries are
+  // visible instead of silently hiding newer upstream models from the user.
+  // Fire-and-forget; failures are logged inside the helper.
+  void checkForUpdateOnStartup();
 });
 
 // Keep the app running when all windows are closed (tray app behavior)
