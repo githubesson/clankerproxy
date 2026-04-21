@@ -40,7 +40,18 @@ export function registerIPCHandlers(proxyManager: ProxyManager) {
 
   handle(IPC_CHANNELS.binary.getLatestRelease, () => getLatestRelease());
   handle(IPC_CHANNELS.binary.checkForUpdate, () => checkForUpdate());
-  handle(IPC_CHANNELS.binary.download, (release?: ReleaseInfo) => downloadBinary(release));
+  handle(IPC_CHANNELS.binary.download, async (release?: ReleaseInfo) => {
+    const wasRunning = proxyManager.state === 'running';
+    const binaryPath = await downloadBinary(release);
+
+    if (wasRunning) {
+      appLogger.log('[binary] Updated engine installed; restarting running proxy to load the new binary.');
+      await proxyManager.restart();
+      appLogger.log('[binary] Proxy restarted on updated engine.');
+    }
+
+    return binaryPath;
+  });
   handle(IPC_CHANNELS.binary.isInstalled, () => isBinaryInstalled());
   handle(IPC_CHANNELS.binary.currentVersion, () => store.get('binaryVersion'));
 

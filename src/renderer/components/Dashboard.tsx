@@ -18,6 +18,7 @@ export function Dashboard() {
   const isRunning = useIsProxyRunning();
   const port = status?.port ?? 8317;
   const updateAvailable = Boolean(update && binary?.installed);
+  const updateWillRestartProxy = updateAvailable && isRunning;
 
   return (
     <div className="max-w-lg space-y-3 @container">
@@ -40,17 +41,28 @@ export function Dashboard() {
                     → {update.version} available
                   </span>
                 )}
+                {updateWillRestartProxy && (
+                  <span className="text-[0.5625rem] text-muted-foreground/70 truncate">
+                    Updating restarts the running proxy automatically
+                  </span>
+                )}
               </div>
               <Button
                 variant={updateAvailable ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => downloadBinary.mutate()}
                 disabled={downloadBinary.isPending}
-                title={updateAvailable && update ? `Download ${update.version}` : 'Check for updates'}
+                title={updateAvailable && update
+                  ? updateWillRestartProxy
+                    ? `Download ${update.version} and restart the running proxy`
+                    : `Download ${update.version}`
+                  : 'Check for updates'}
               >
                 {downloadBinary.isPending
-                  ? <><SpinnerIcon className="size-3" />{updateAvailable ? 'Updating' : 'Checking'}</>
-                  : updateAvailable ? <><DownloadIcon className="size-3" />Update</> : 'Check'}
+                  ? <><SpinnerIcon className="size-3" />{updateWillRestartProxy ? 'Updating' : updateAvailable ? 'Updating' : 'Checking'}</>
+                  : updateAvailable
+                    ? <><DownloadIcon className="size-3" />{updateWillRestartProxy ? 'Update & Restart' : 'Update'}</>
+                    : 'Check'}
               </Button>
             </div>
           ) : (

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import type { ClankerProxyAPI } from '../../preload/preload';
+import { resolveBuiltInChannelModels } from '../lib/customModels';
 
 declare global {
   interface Window {
@@ -130,10 +131,24 @@ export function useBinaryStatus() {
 }
 
 export function useDownloadBinary() {
-  return useInvalidateQueriesMutation<void, string>({
+  const queryClient = useQueryClient();
+
+  const invalidate = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['binary'] }),
+    queryClient.invalidateQueries({ queryKey: ['proxy', 'status'] }),
+    queryClient.invalidateQueries({ queryKey: ['models'] }),
+  ]);
+
+  return useMutation({
+    // The main-process download handler restarts a running proxy before this
+    // promise resolves, so callers only need to refresh the relevant queries.
     mutationFn: () => api().binary.download(),
-    queryKeys: [['binary']],
-    invalidateOn: 'settled',
+    onSuccess: async () => {
+      await invalidate();
+    },
+    onSettled: async () => {
+      await invalidate();
+    },
   });
 }
 
@@ -294,7 +309,20 @@ export function useUsage() {
 export function useModelDefinitions(channel: string, enabled: boolean = true) {
   return useProxyQuery({
     queryKey: ['models', channel],
-    queryFn: () => api().models.get(channel),
+    queryFn: async () => {
+      const modelData = await api().models.get(channel);
+
+      if (channel !== 'claude') {
+        return modelData;
+      }
+
+      try {
+        const modelsCatalog = await api().modelsDev.get();
+        return resolveBuiltInChannelModels(channel, modelData, modelsCatalog);
+      } catch {
+        return modelData;
+      }
+    },
     staleTime: 60000,
     enabled,
   });
