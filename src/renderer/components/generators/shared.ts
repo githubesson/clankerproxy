@@ -24,10 +24,19 @@ const SUFFIX_THINKING_OPTIONS: Record<string, { value: string; label: string }[]
   ],
 };
 
-const GENERATOR_CHANNEL_FAMILIES: Record<string, 'anthropic' | 'openai' | 'compat'> = {
+const GEMINI_LEVEL_LABELS: Record<string, string> = {
+  minimal: 'Minimal',
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'XHigh',
+  max: 'Max',
+};
+
+const GENERATOR_CHANNEL_FAMILIES: Record<string, 'anthropic' | 'openai' | 'compat' | 'google'> = {
   claude: 'anthropic',
-  gemini: 'compat',
-  'gemini-cli': 'compat',
+  gemini: 'google',
+  'gemini-cli': 'google',
   codex: 'openai',
   cursor: 'compat',
   kimi: 'compat',
@@ -43,11 +52,18 @@ export function createGeneratorChannelFormatMap(formats: {
   anthropic: string;
   openai: string;
   compat: string;
+  google?: string;
 }): Record<string, string> {
   return Object.fromEntries(
     Object.entries(GENERATOR_CHANNEL_FAMILIES).map(([channel, family]) => [
       channel,
-      family === 'anthropic' ? formats.anthropic : family === 'openai' ? formats.openai : formats.compat,
+      family === 'anthropic'
+        ? formats.anthropic
+        : family === 'openai'
+          ? formats.openai
+          : family === 'google'
+            ? (formats.google ?? formats.compat)
+            : formats.compat,
     ]),
   );
 }
@@ -58,6 +74,23 @@ export function getSuffixThinkingOptions(
 ): { value: string; label: string }[] {
   const family = formatFamilies[format] ?? 'openai';
   return SUFFIX_THINKING_OPTIONS[family] ?? SUFFIX_THINKING_OPTIONS.openai;
+}
+
+export function getGeminiSuffixThinkingOptions(model?: { thinking?: any }): { value: string; label: string }[] {
+  const levels = model?.thinking?.levels;
+  if (!Array.isArray(levels) || levels.length === 0) {
+    return SUFFIX_THINKING_OPTIONS.gemini;
+  }
+
+  const options = [{ value: '(none)', label: 'Off' }];
+  for (const rawLevel of levels) {
+    const level = String(rawLevel).trim().toLowerCase();
+    const label = GEMINI_LEVEL_LABELS[level];
+    if (label) {
+      options.push({ value: `(${level})`, label });
+    }
+  }
+  return options;
 }
 
 export function stripSuffixVariant(value: string): string {

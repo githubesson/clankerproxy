@@ -15,6 +15,7 @@ export interface SelectedModel {
   channel: string;
   maxOutputTokens: number;
   contextLength: number;
+  thinking?: any;
 }
 
 export interface GeneratorSecondaryProfile {
@@ -28,7 +29,7 @@ export interface GeneratorDef {
   apiKeyPlaceholder: string;
   formats: { value: string; label: string }[];
   channelFormatMap: Record<string, string>;
-  getThinkingOptions: (format: string) => { value: string; label: string }[];
+  getThinkingOptions: (format: string, model?: SelectedModel) => { value: string; label: string }[];
   getSecondaryProfile?: (model: SelectedModel) => GeneratorSecondaryProfile | null;
   getVariantName?: (format: string, value: string) => string;
   buildOutput: (ctx: {
@@ -229,7 +230,7 @@ export function GeneratorShell({ def, availableChannels }: Props) {
           </CardHeader>
           <CardContent className="p-0">
             {selected.map((model, index) => {
-              const chips = def.getThinkingOptions(model.format);
+              const chips = def.getThinkingOptions(model.format, model);
               const secondaryProfile = def.getSecondaryProfile?.(model) ?? null;
               const hasSecondaryProfile = secondaryProfile !== null;
               const activeMode = hasSecondaryProfile ? (profileModes[model.id] ?? 'standard') : 'standard';
@@ -365,5 +366,6 @@ function toSelectedModel(model: any, format: string, channel: string): SelectedM
     channel,
     maxOutputTokens: model.max_completion_tokens || model.outputTokenLimit || 16384,
     contextLength: model.context_length || model.inputTokenLimit || 0,
+    thinking: model.thinking,
   };
 }

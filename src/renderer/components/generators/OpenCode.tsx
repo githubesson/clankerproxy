@@ -1,6 +1,6 @@
 import React from 'react';
 import { GeneratorShell, type GeneratorDef, type SelectedModel } from './GeneratorShell';
-import { createGeneratorChannelFormatMap } from './shared';
+import { createGeneratorChannelFormatMap, getGeminiSuffixThinkingOptions, stripSuffixVariant } from './shared';
 
 const ANTHROPIC_CHIPS = [
   { value: 'disabled', label: 'Off' },
@@ -24,6 +24,7 @@ const NPM: Record<string, string> = {
   anthropic: '@ai-sdk/anthropic',
   openai: '@ai-sdk/openai',
   'openai-compatible': '@ai-sdk/openai-compatible',
+  google: '@ai-sdk/google',
 };
 
 function buildThinkingOptions(fmt: string, v: string): Record<string, any> {
@@ -32,7 +33,57 @@ function buildThinkingOptions(fmt: string, v: string): Record<string, any> {
     if (v === 'adaptive') return { thinking: { type: 'adaptive' } };
     return { thinking: { type: 'enabled', budgetTokens: parseInt(v) } };
   }
+  if (fmt === 'google') {
+    return {};
+  }
   return { reasoningEffort: v };
+}
+
+const GEMINI_LEVEL_BUDGET: Record<string, number> = {
+  minimal: 512,
+  low: 1024,
+  medium: 8192,
+  high: 24576,
+  xhigh: 32768,
+  max: 128000,
+};
+
+function buildGeminiThinkingOptions(model: SelectedModel, suffix: string): Record<string, any> {
+  const level = stripSuffixVariant(suffix);
+  const levels = model.thinking?.levels;
+
+  if (Array.isArray(levels) && levels.length > 0) {
+    if (level === 'none') {
+      return {
+        thinkingConfig: {
+          includeThoughts: false,
+          thinkingLevel: String(levels[0]).trim().toLowerCase(),
+        },
+      };
+    }
+    return {
+      thinkingConfig: {
+        includeThoughts: true,
+        thinkingLevel: level,
+      },
+    };
+  }
+
+  if (level === 'none') {
+    return {
+      thinkingConfig: {
+        includeThoughts: false,
+        thinkingBudget: 0,
+      },
+    };
+  }
+
+  return {
+    thinkingConfig: {
+      includeThoughts: true,
+      thinkingBudget: GEMINI_LEVEL_BUDGET[level] ?? 8192,
+    },
+  };
 }
 
 function buildFastModeOptions(fmt: string): Record<string, any> {
@@ -80,6 +131,21 @@ function buildVariantOptions(model: SelectedModel, fmt: string, v: string, secon
   };
 }
 
+function buildGeminiModelEntries(model: SelectedModel): Record<string, any> {
+  const entry: Record<string, any> = {
+    name: `[clanker] ${model.displayName}`,
+    ...buildLimit(model),
+  };
+
+  if (model.variants.length > 0) {
+    entry.variants = Object.fromEntries(
+      model.variants.map((suffix) => [variantName('google', suffix), buildGeminiThinkingOptions(model, suffix)]),
+    );
+  }
+
+  return { [model.id]: entry };
+}
+
 const BUDGET_LEVEL_NAME: Record<string, string> = {
   '1024': 'low',
   '8192': 'medium',
@@ -90,6 +156,9 @@ const BUDGET_LEVEL_NAME: Record<string, string> = {
 };
 
 function variantName(fmt: string, v: string): string {
+  if (fmt === 'google') {
+    return stripSuffixVariant(v);
+  }
   if (fmt === 'anthropic') {
     if (v === 'disabled') return 'no-thinking';
     if (v === 'adaptive') return 'adaptive';
@@ -106,14 +175,19 @@ const def: GeneratorDef = {
     { value: 'anthropic', label: 'Anthropic' },
     { value: 'openai', label: 'OpenAI' },
     { value: 'openai-compatible', label: 'OpenAI Compatible' },
+    { value: 'google', label: 'Google' },
   ],
   channelFormatMap: createGeneratorChannelFormatMap({
     anthropic: 'anthropic',
     openai: 'openai',
     compat: 'openai-compatible',
+    google: 'google',
   }),
 
-  getThinkingOptions(format) {
+  getThinkingOptions(format, model) {
+    if (format === 'google') {
+      return getGeminiSuffixThinkingOptions(model);
+    }
     return format === 'anthropic' ? ANTHROPIC_CHIPS : OPENAI_CHIPS;
   },
 
@@ -136,17 +210,25 @@ const def: GeneratorDef = {
     const provider: Record<string, any> = {};
 
     for (const [fmt, fmtModels] of Object.entries(byFormat)) {
-      const key = fmt === 'anthropic' ? 'clanker-anthropic' : fmt === 'openai' ? 'clanker-openai' : 'clanker-proxy';
+      const key = fmt === 'anthropic'
+        ? 'clanker-anthropic'
+        : fmt === 'openai'
+          ? 'clanker-openai'
+          : fmt === 'google'
+            ? 'clanker-google'
+            : 'clanker-proxy';
 
       const modelsObj: Record<string, any> = {};
       for (const m of fmtModels) {
+        if (fmt === 'google') {
+          Object.assign(modelsObj, buildGeminiModelEntries(m));
+          continue;
+        }
+
         const entry: Record<string, any> = {
           name: `[clanker] ${m.displayName}`,
+          ...buildLimit(m),
         };
-        // Only include limit when both values are known (not fallback defaults)
-        if (m.contextLength > 0 && m.maxOutputTokens > 0 && m.maxOutputTokens !== 16384) {
-          entry.limit = { context: m.contextLength, output: m.maxOutputTokens };
-        }
 
         const totalVariants = m.variants.length + m.secondaryVariants.length;
 
@@ -173,7 +255,7 @@ const def: GeneratorDef = {
       provider[key] = {
         npm: NPM[fmt],
         name: 'ClankerProxy',
-        options: { baseURL: `http://127.0.0.1:${port}/v1`, apiKey },
+        options: { baseURL: buildProviderBaseURL(fmt, port), apiKey },
         models: modelsObj,
       };
     }
@@ -181,6 +263,19 @@ const def: GeneratorDef = {
     return { $schema: 'https://opencode.ai/config.json', provider };
   },
 };
+
+function buildLimit(model: SelectedModel): Record<string, any> {
+  if (model.contextLength > 0 && model.maxOutputTokens > 0 && model.maxOutputTokens !== 16384) {
+    return { limit: { context: model.contextLength, output: model.maxOutputTokens } };
+  }
+  return {};
+}
+
+function buildProviderBaseURL(format: string, port: number): string {
+  return format === 'google'
+    ? `http://127.0.0.1:${port}/v1beta`
+    : `http://127.0.0.1:${port}/v1`;
+}
 
 interface Props {
   availableChannels: { channel: string; label: string }[];

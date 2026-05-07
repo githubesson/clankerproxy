@@ -1,6 +1,6 @@
 import React from 'react';
 import { GeneratorShell, type GeneratorDef, type SelectedModel } from './GeneratorShell';
-import { createGeneratorChannelFormatMap, getSuffixThinkingOptions, stripSuffixVariant } from './shared';
+import { createGeneratorChannelFormatMap, getGeminiSuffixThinkingOptions, getSuffixThinkingOptions, stripSuffixVariant } from './shared';
 
 const FORMAT_FAMILY: Record<string, 'claude' | 'openai' | 'gemini'> = {
   anthropic: 'claude',
@@ -29,9 +29,13 @@ const def: GeneratorDef = {
     anthropic: 'anthropic',
     openai: 'openai',
     compat: 'openai-compat',
+    google: 'gemini',
   }),
 
-  getThinkingOptions(format) {
+  getThinkingOptions(format, model) {
+    if (format === 'gemini') {
+      return getGeminiSuffixThinkingOptions(model);
+    }
     return getSuffixThinkingOptions(format, FORMAT_FAMILY);
   },
 
@@ -127,7 +131,11 @@ function buildProviderConfig(
   const secondaryProfile = resolveProviderSecondaryProfile(selectedModels);
   return {
     name: 'ClankerProxy',
-    base_url: format === 'anthropic' ? `http://127.0.0.1:${port}` : `http://127.0.0.1:${port}/v1`,
+    base_url: format === 'anthropic'
+      ? `http://127.0.0.1:${port}`
+      : format === 'gemini'
+        ? `http://127.0.0.1:${port}/v1beta`
+        : `http://127.0.0.1:${port}/v1`,
     type: format === 'openai-compat' ? 'openai-compat' : format,
     api_key: apiKey,
     ...(secondary ? buildSecondaryProviderConfig(secondaryProfile) : {}),

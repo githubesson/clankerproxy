@@ -141,7 +141,11 @@ export class ManagementClient {
 
   // OAuth
   async startOAuth(provider: string): Promise<{ url: string; state: string }> {
-    return this.get(`/v0/management/${provider}-auth-url?is_webui=true`);
+    const params = new URLSearchParams({ is_webui: 'true' });
+    if (provider === 'gemini-cli') {
+      params.set('project_id', 'GOOGLE_ONE');
+    }
+    return this.get(`/v0/management/${provider}-auth-url?${params.toString()}`);
   }
 
   async getAuthStatus(state: string): Promise<{ status: string; error?: string }> {

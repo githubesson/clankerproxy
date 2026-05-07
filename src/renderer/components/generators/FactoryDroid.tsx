@@ -1,11 +1,12 @@
 import React from 'react';
 import { GeneratorShell, type GeneratorDef, type SelectedModel } from './GeneratorShell';
-import { createGeneratorChannelFormatMap, getSuffixThinkingOptions, stripSuffixVariant } from './shared';
+import { createGeneratorChannelFormatMap, getGeminiSuffixThinkingOptions, getSuffixThinkingOptions, stripSuffixVariant } from './shared';
 
-const FORMAT_FAMILY: Record<string, 'claude' | 'openai'> = {
+const FORMAT_FAMILY: Record<string, 'claude' | 'openai' | 'gemini'> = {
   anthropic: 'claude',
   openai: 'openai',
   'generic-chat-completion-api': 'openai',
+  gemini: 'gemini',
 };
 
 function resolveSecondaryProfile(model: SelectedModel) {
@@ -22,14 +23,19 @@ const def: GeneratorDef = {
     { value: 'anthropic', label: 'Anthropic' },
     { value: 'openai', label: 'OpenAI' },
     { value: 'generic-chat-completion-api', label: 'Generic' },
+    { value: 'gemini', label: 'Gemini' },
   ],
   channelFormatMap: createGeneratorChannelFormatMap({
     anthropic: 'anthropic',
     openai: 'openai',
     compat: 'openai',
+    google: 'gemini',
   }),
 
-  getThinkingOptions(format) {
+  getThinkingOptions(format, model) {
+    if (format === 'gemini') {
+      return getGeminiSuffixThinkingOptions(model);
+    }
     return getSuffixThinkingOptions(format, FORMAT_FAMILY);
   },
 
@@ -45,11 +51,15 @@ const def: GeneratorDef = {
     const entries: any[] = [];
 
     for (const model of selected) {
-      const baseUrl = model.format === 'anthropic' ? `http://127.0.0.1:${port}` : `http://127.0.0.1:${port}/v1`;
+      const baseUrl = model.format === 'anthropic'
+        ? `http://127.0.0.1:${port}`
+        : model.format === 'gemini'
+          ? `http://127.0.0.1:${port}/v1beta`
+          : `http://127.0.0.1:${port}/v1`;
       const base = {
         baseUrl,
         apiKey,
-        provider: model.format,
+        provider: model.format === 'gemini' ? 'generic-chat-completion-api' : model.format,
         ...(model.maxOutputTokens ? { maxOutputTokens: model.maxOutputTokens } : {}),
       };
 
