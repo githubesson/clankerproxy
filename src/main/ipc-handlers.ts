@@ -1,4 +1,3 @@
-import https from 'https';
 import os from 'os';
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { downloadBinary, getLatestRelease, checkForUpdate, isBinaryInstalled, type ReleaseInfo } from './binary-manager';
@@ -7,8 +6,11 @@ import { store } from './store';
 import { IPC_CHANNELS } from '../shared/ipc';
 import { appLogger } from './app-logger';
 import { checkForAppUpdate } from './app-updater';
+import { fetchModelsDevCatalog } from './models-dev';
+import { registerModelsDevPresetSnapshot } from './models-dev-preset-updater';
+import { UsageRecorder } from './usage-recorder';
 
-export function registerIPCHandlers(proxyManager: ProxyManager) {
+export function registerIPCHandlers(proxyManager: ProxyManager, usageRecorder: UsageRecorder) {
   const requireClient = () => {
     const client = proxyManager.client;
     if (!client) throw new Error('Proxy is not running');
@@ -83,28 +85,12 @@ export function registerIPCHandlers(proxyManager: ProxyManager) {
   handleClient(IPC_CHANNELS.oauth.getStatus, (client, state: string) => client.getAuthStatus(state));
 
   handleClient(IPC_CHANNELS.logs.get, (client, after: number, limit: number) => client.getLogs(after, limit));
-  handleClient(IPC_CHANNELS.usage.get, (client) => client.getUsage());
+  handle(IPC_CHANNELS.usage.get, () => usageRecorder.getRecords());
+  handle(IPC_CHANNELS.usage.clear, () => usageRecorder.clear());
   handleClient(IPC_CHANNELS.models.get, (client, channel: string) => client.getModelDefinitions(channel));
 
-  let modelsDevCache: { data: any; ts: number } | null = null;
-  handle(IPC_CHANNELS.modelsDev.get, async () => {
-    if (modelsDevCache && Date.now() - modelsDevCache.ts < 600000) {
-      return modelsDevCache.data;
-    }
-
-    const data: Buffer[] = [];
-    const json = await new Promise<string>((resolve, reject) => {
-      https.get('https://models.dev/api.json', { headers: { 'User-Agent': 'ClankerProxy/1.0' } }, (res: any) => {
-        res.on('data', (chunk: Buffer) => data.push(chunk));
-        res.on('end', () => resolve(Buffer.concat(data).toString()));
-        res.on('error', reject);
-      }).on('error', reject);
-    });
-
-    const parsed = JSON.parse(json);
-    modelsDevCache = { data: parsed, ts: Date.now() };
-    return parsed;
-  });
+  handle(IPC_CHANNELS.modelsDev.get, () => fetchModelsDevCatalog());
+  handle(IPC_CHANNELS.modelsDev.registerPreset, (providerId: string) => registerModelsDevPresetSnapshot(providerId));
 
   handleClient(IPC_CHANNELS.authFiles.openFolder, async (client) => {
     const config = await client.getConfig();

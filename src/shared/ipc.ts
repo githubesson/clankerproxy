@@ -48,12 +48,15 @@ export const IPC_CHANNELS = {
   },
   usage: {
     get: 'usage:get',
+    clear: 'usage:clear',
+    onRecord: 'usage:record',
   },
   models: {
     get: 'models:get',
   },
   modelsDev: {
     get: 'modelsDev:get',
+    registerPreset: 'modelsDev:registerPreset',
   },
   prefs: {
     get: 'prefs:get',

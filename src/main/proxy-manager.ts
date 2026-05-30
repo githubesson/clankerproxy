@@ -25,6 +25,10 @@ export class ProxyManager extends EventEmitter {
     return this._client;
   }
 
+  get managementSecret(): string {
+    return this.password;
+  }
+
   get port(): number {
     return store.get('port');
   }

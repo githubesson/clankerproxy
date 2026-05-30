@@ -63,12 +63,15 @@ const api = {
   },
   usage: {
     get: invoke(IPC_CHANNELS.usage.get),
+    clear: invoke(IPC_CHANNELS.usage.clear),
+    onRecord: (callback: (record: any) => void) => subscribe(IPC_CHANNELS.usage.onRecord, callback),
   },
   models: {
     get: (channel: string) => invoke(IPC_CHANNELS.models.get)(channel) as Promise<{ channel: string; models: any[] }>,
   },
   modelsDev: {
     get: () => invoke(IPC_CHANNELS.modelsDev.get)() as Promise<Record<string, any>>,
+    registerPreset: (providerId: string) => invoke(IPC_CHANNELS.modelsDev.registerPreset)(providerId) as Promise<void>,
   },
   appLogs: {
     get: () => invoke(IPC_CHANNELS.appLogs.get)() as Promise<string[]>,

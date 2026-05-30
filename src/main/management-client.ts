@@ -166,8 +166,12 @@ export class ManagementClient {
   }
 
   // Usage
-  async getUsage(): Promise<Record<string, any>> {
-    return this.get('/v0/management/usage');
+  async getUsage(count: number = 100): Promise<any[]> {
+    return this.get(`/v0/management/usage-queue?count=${encodeURIComponent(String(count))}`);
+  }
+
+  async getAPIKeyUsage(): Promise<Record<string, any>> {
+    return this.get('/v0/management/api-key-usage');
   }
 
   // Models

@@ -3,11 +3,14 @@ import { join } from 'path';
 import { ProxyManager } from './proxy-manager';
 import { createTray } from './tray';
 import { registerIPCHandlers } from './ipc-handlers';
+import { IPC_CHANNELS } from '../shared/ipc';
 import { isBinaryInstalled, downloadBinary } from './binary-manager';
 import { store } from './store';
 import { startAutoUpdater, restartAutoUpdater, checkForUpdateOnStartup } from './auto-updater';
 import { checkForAppUpdateOnStartup, startAppUpdaterPolling } from './app-updater';
+import { checkModelsDevPresetUpdates, restartModelsDevPresetUpdater, startModelsDevPresetUpdater } from './models-dev-preset-updater';
 import { appLogger } from './app-logger';
+import { UsageRecorder } from './usage-recorder';
 
 function log(msg: string) { appLogger.log(msg); }
 process.on('uncaughtException', (err) => { log(`UNCAUGHT: ${err.stack ?? err}`); });
@@ -27,6 +30,7 @@ if (process.platform === 'win32' && process.argv[1]?.startsWith('--squirrel-')) 
 }
 
 const proxyManager = new ProxyManager();
+const usageRecorder = new UsageRecorder();
 let settingsWindow: BrowserWindow | null = null;
 let isQuitting = false;
 
@@ -105,6 +109,12 @@ function createSettingsWindow() {
 // Forward proxy events to renderer
 proxyManager.on('state-change', (state: string) => {
   settingsWindow?.webContents.send('proxy:stateChanged', state);
+  if (state === 'running') {
+    usageRecorder.start(proxyManager.port, proxyManager.managementSecret);
+    void checkModelsDevPresetUpdates(proxyManager);
+  } else if (state === 'stopped' || state === 'error') {
+    usageRecorder.stop();
+  }
 });
 
 proxyManager.on('log', (lines: string[]) => {
@@ -115,10 +125,14 @@ appLogger.on('log', (lines: string[]) => {
   settingsWindow?.webContents.send('app:log', lines);
 });
 
+usageRecorder.on('record', (record) => {
+  settingsWindow?.webContents.send(IPC_CHANNELS.usage.onRecord, record);
+});
+
 app.on('ready', async () => {
   log(`App ready. userData: ${app.getPath('userData')}`);
   log(`__dirname: ${__dirname}`);
-  registerIPCHandlers(proxyManager);
+  registerIPCHandlers(proxyManager, usageRecorder);
   createTray(proxyManager, createSettingsWindow);
   createSettingsWindow(); // Always open on startup for debugging
 
@@ -145,6 +159,12 @@ app.on('ready', async () => {
   store.onDidChange('autoUpdateBinary', () => restartAutoUpdater(restartRunningProxyAfterBinaryUpdate));
   store.onDidChange('autoUpdateIntervalMinutes', () => restartAutoUpdater(restartRunningProxyAfterBinaryUpdate));
 
+  // Keep models.dev-created provider presets fresh by adding new catalog models
+  // to matching preset entries whenever the proxy management API is available.
+  startModelsDevPresetUpdater(proxyManager);
+  store.onDidChange('autoUpdateModelsDevPresets', () => restartModelsDevPresetUpdater(proxyManager));
+  store.onDidChange('modelsDevPresetUpdateIntervalMinutes', () => restartModelsDevPresetUpdater(proxyManager));
+
   // Always log whether a binary update is available at startup, even when
   // `autoUpdateBinary` is disabled. The renderer shows this availability via
   // the `binary:checkForUpdate` IPC on the Dashboard so stale binaries are
@@ -165,5 +185,6 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', async () => {
   isQuitting = true;
+  usageRecorder.stop();
   await proxyManager.stop();
 });

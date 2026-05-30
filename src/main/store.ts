@@ -9,6 +9,9 @@ interface StoreSchema {
   zoom: number;
   autoUpdateBinary: boolean;
   autoUpdateIntervalMinutes: number;
+  autoUpdateModelsDevPresets: boolean;
+  modelsDevPresetUpdateIntervalMinutes: number;
+  modelsDevPresetModelSnapshots: Record<string, string[]>;
 }
 
 export const store = new Store<StoreSchema>({
@@ -21,5 +24,8 @@ export const store = new Store<StoreSchema>({
     zoom: 1.0,
     autoUpdateBinary: false,
     autoUpdateIntervalMinutes: 30,
+    autoUpdateModelsDevPresets: true,
+    modelsDevPresetUpdateIntervalMinutes: 30,
+    modelsDevPresetModelSnapshots: {},
   },
 });

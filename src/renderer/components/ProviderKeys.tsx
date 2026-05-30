@@ -141,6 +141,12 @@ function PresetBrowser() {
           models: openAICompatModels,
         }),
       });
+
+      try {
+        await api.modelsDev.registerPreset(selectedProvider.id);
+      } catch (err) {
+        console.warn('Failed to register models.dev preset snapshot', err);
+      }
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['providerKeys'] });

@@ -4,6 +4,7 @@ import { APIKeys } from './components/APIKeys';
 import { ProviderKeys } from './components/ProviderKeys';
 import { OAuthPanel } from './components/OAuthPanel';
 import { AuthFiles } from './components/AuthFiles';
+import { Usage } from './components/Usage';
 import { Settings } from './components/Settings';
 import { LogViewer } from './components/LogViewer';
 import { Models } from './components/Models';
@@ -17,6 +18,7 @@ const NAV = [
   { id: 'providers', label: 'Providers' },
   { id: 'oauth', label: 'OAuth' },
   { id: 'authfiles', label: 'Auth Files' },
+  { id: 'usage', label: 'Usage' },
   { id: 'models', label: 'Models' },
   { id: 'configgen', label: 'Config Gen' },
   { id: 'settings', label: 'Settings' },
@@ -195,6 +197,7 @@ export function App() {
           {active === 'providers' && <ProviderKeys />}
           {active === 'oauth' && <OAuthPanel />}
           {active === 'authfiles' && <AuthFiles />}
+          {active === 'usage' && <Usage />}
           {active === 'models' && <Models />}
           {active === 'configgen' && <ConfigGenerator />}
           {active === 'settings' && <Settings />}

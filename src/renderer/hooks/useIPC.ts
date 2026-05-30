@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import type { ClankerProxyAPI } from '../../preload/preload';
+import type { UsageRecord } from '../../shared/usage';
 import { resolveBuiltInChannelModels } from '../lib/customModels';
 
 declare global {
@@ -318,10 +319,27 @@ export function useUpdateConfigField() {
 
 // Usage
 export function useUsage() {
-  return useProxyQuery({
+  const queryClient = useQueryClient();
+  const query = useQuery<UsageRecord[]>({
     queryKey: ['usage'],
     queryFn: () => api().usage.get(),
-    refetchInterval: 5000,
+    refetchInterval: 30000,
+  });
+
+  useEffect(() => {
+    const unsub = api().usage.onRecord(() => {
+      queryClient.invalidateQueries({ queryKey: ['usage'] });
+    });
+    return unsub;
+  }, [queryClient]);
+
+  return query;
+}
+
+export function useClearUsage() {
+  return useInvalidateQueriesMutation<void, void>({
+    mutationFn: () => api().usage.clear(),
+    queryKeys: [['usage']],
   });
 }
 

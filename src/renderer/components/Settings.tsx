@@ -26,7 +26,23 @@ export function Settings() {
         </CardContent>
       </Card>
 
-      <AutoUpdateCard />
+      <AutoIntervalCard
+        enabledPref="autoUpdateBinary"
+        intervalPref="autoUpdateIntervalMinutes"
+        enabledDefault={false}
+        intervalDefault={30}
+        label="Auto-update binary"
+        name="auto-update-interval"
+      />
+
+      <AutoIntervalCard
+        enabledPref="autoUpdateModelsDevPresets"
+        intervalPref="modelsDevPresetUpdateIntervalMinutes"
+        enabledDefault
+        intervalDefault={30}
+        label="Auto-update presets"
+        name="models-dev-preset-update-interval"
+      />
 
       <Card>
         <CardContent className="p-0">
@@ -174,18 +190,33 @@ function SettingRow({
   );
 }
 
-function AutoUpdateCard() {
-  const { data: enabled } = usePref<boolean>('autoUpdateBinary', false);
-  const { data: interval } = usePref<number>('autoUpdateIntervalMinutes', 30);
-  const setEnabled = useSetPref('autoUpdateBinary');
-  const setInterval_ = useSetPref('autoUpdateIntervalMinutes');
-  const [draft, setDraft] = useState(String(interval ?? 30));
+function AutoIntervalCard({
+  enabledPref,
+  intervalPref,
+  enabledDefault,
+  intervalDefault,
+  label,
+  name,
+}: {
+  enabledPref: string;
+  intervalPref: string;
+  enabledDefault: boolean;
+  intervalDefault: number;
+  label: string;
+  name: string;
+}) {
+  const { data: enabled } = usePref<boolean>(enabledPref, enabledDefault);
+  const { data: interval } = usePref<number>(intervalPref, intervalDefault);
+  const setEnabled = useSetPref(enabledPref);
+  const setInterval_ = useSetPref(intervalPref);
+  const [draft, setDraft] = useState(String(interval ?? intervalDefault));
   const toggleId = useId();
   const intervalId = useId();
+  const isEnabled = enabled ?? enabledDefault;
 
   useEffect(() => {
-    setDraft(String(interval ?? 30));
-  }, [interval]);
+    setDraft(String(interval ?? intervalDefault));
+  }, [interval, intervalDefault]);
 
   const commitInterval = () => {
     const parsed = parseInt(draft, 10);
@@ -196,16 +227,16 @@ function AutoUpdateCard() {
   return (
     <Card>
       <CardContent className="p-0">
-        <SettingRow label="Auto-update binary" id={toggleId}>
-          <Switch id={toggleId} checked={enabled ?? false} onCheckedChange={(v) => setEnabled.mutate(v)} aria-label="Auto-update binary" />
+        <SettingRow label={label} id={toggleId}>
+          <Switch id={toggleId} checked={isEnabled} onCheckedChange={(v) => setEnabled.mutate(v)} aria-label={label} />
         </SettingRow>
-        {enabled && (
+        {isEnabled && (
           <>
             <Separator />
             <SettingRow label="Check interval (min)" id={intervalId}>
               <Input
                 id={intervalId}
-                name="auto-update-interval"
+                name={name}
                 aria-label="Check interval in minutes"
                 type="number"
                 value={draft}
