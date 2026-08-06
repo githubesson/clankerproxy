@@ -51,7 +51,9 @@ function moveLockedBinaryAside(binDir: string): string | null {
 
 function getPlatformArch(): { os: string; arch: string } {
   const os = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'darwin' : 'linux';
-  const arch = process.arch === 'arm64' ? 'arm64' : 'amd64';
+  // Node calls 64-bit ARM "arm64", while CLIProxyAPI's release assets use
+  // GoReleaser's "aarch64" label (for example, darwin_aarch64.tar.gz).
+  const arch = process.arch === 'arm64' ? 'aarch64' : 'amd64';
   return { os, arch };
 }
 
@@ -89,7 +91,9 @@ export async function getLatestRelease(): Promise<ReleaseInfo> {
   const pattern = `${os}_${arch}`;
 
   const asset = release.assets?.find((a: { name: string }) =>
-    a.name.includes(pattern) && a.name.endsWith(ext)
+    a.name.includes(pattern) &&
+    !a.name.includes('_no-plugin.') &&
+    a.name.endsWith(`.${ext}`)
   );
 
   if (!asset) {
